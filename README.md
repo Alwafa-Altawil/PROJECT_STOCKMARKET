@@ -248,18 +248,13 @@ Un diagramme de Gantt a été réalisé afin de planifier :
 
 ## 3.3 Modélisation UML
 
-- Diagramme de classes
+
 - Diagramme de séquence
 - Diagramme des cas d’utilisation
 
 ---
 
 ## 3.4 Vues
-
-- Vue utilisateur (Dashboard)
-- Vue portefeuille
-- Vue transactions
-- Vue administration
 
 ---
 
@@ -283,9 +278,3 @@ Il permet de mettre en pratique des compétences techniques avancées tout en r�
 - Système de classement entre utilisateurs
 - Ajout d’événements économiques simulés
 - Amélioration continue de l’interface utilisateur
-
-
-# Frontend
-cd frontend
-npm install
-npm start
