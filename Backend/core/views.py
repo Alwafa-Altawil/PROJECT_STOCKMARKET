@@ -1,8 +1,23 @@
+from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from .models import *
 from .serializers import *
+  
+class StockViewSet(viewsets.ModelViewSet):
+    queryset = Stock.objects.all()
+    serializer_class = StockSerializer
  
+class PortfolioViewSet(viewsets.ModelViewSet):
+    serializer_class = PortfolioSerializer
+    permission_classes = [IsAuthenticated]
+ 
+    def get_queryset(self):
+        return Portfolio.objects.filter(user=self.request.user) 
+
+
+
 @api_view(['GET'])
 def get_portfolio(request):
     data = Portfolio.objects.filter(user=request.user)
