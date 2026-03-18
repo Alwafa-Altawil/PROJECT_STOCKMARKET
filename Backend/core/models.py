@@ -13,7 +13,7 @@ class Stock(models.Model):
 class Portfolio(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
-    quantity = models.IntegerField(default=0)
+    quantity = models.IntegerField(default=6)
  
 class Transaction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

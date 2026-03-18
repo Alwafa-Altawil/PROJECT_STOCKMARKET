@@ -4,8 +4,7 @@ from .views import StockViewSet, PortfolioViewSet
  
 router = DefaultRouter()
 router.register(r'stocks', StockViewSet)
-router.register(r'portfolio', PortfolioViewSet)
- 
+router.register(r'portfolio', PortfolioViewSet, basename='portfolio') 
 urlpatterns = [
     path('api/', include(router.urls)),
 ]
