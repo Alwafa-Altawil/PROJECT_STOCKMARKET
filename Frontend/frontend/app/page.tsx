@@ -1,26 +1,27 @@
 "use client";
  
 import { useState, useEffect } from "react";
+import Link from "next/link";
  
 export default function StockSimulation() {
   // Prix de l'action
   const [price, setPrice] = useState(100);
  
-  // Historique du prix pour le graphique
+  // Historique
   const [history, setHistory] = useState<number[]>([100]);
  
-  // Données du joueur
+  // Portefeuille
   const [balance, setBalance] = useState(10000);
   const [shares, setShares] = useState(0);
  
-  // Mise à jour du prix toutes les 2 secondes
+  // Mise à jour automatique du prix
   useEffect(() => {
     const interval = setInterval(() => {
       setPrice((prev) => {
-        const change = (Math.random() - 0.5) * 4; // Variation aléatoire
+        const change = (Math.random() - 0.5) * 4;
         const newPrice = Math.max(1, prev + change);
  
-        setHistory((h) => [...h.slice(-40), newPrice]); // Limite 40 points
+        setHistory((h) => [...h.slice(-40), newPrice]);
         return newPrice;
       });
     }, 1500);
@@ -28,7 +29,7 @@ export default function StockSimulation() {
     return () => clearInterval(interval);
   }, []);
  
-  // Achat
+  // Acheter
   function buy() {
     if (balance >= price) {
       setShares(shares + 1);
@@ -36,7 +37,7 @@ export default function StockSimulation() {
     }
   }
  
-  // Vente
+  // Vendre
   function sell() {
     if (shares > 0) {
       setShares(shares - 1);
@@ -44,13 +45,31 @@ export default function StockSimulation() {
     }
   }
  
-  // Valeur totale
   const total = Math.round(balance + shares * price);
  
   return (
-    <div className="flex flex-col items-center gap-10 py-10">
+    <div className="flex flex-col items-center gap-10 py-10 w-full">
  
-      <h1 className="text-4xl font-bold">Simulation Boursière 📈</h1>
+      {/* NAVIGATION */}
+<nav className="w-full max-w-4xl bg-white shadow-md rounded-xl p-4 flex justify-around text-lg font-semibold">
+  <Link href="/portfolio" className="hover:text-blue-600 transition">
+    PortFolio
+  </Link>
+ 
+  <Link href="/nouvelles" className="hover:text-blue-600 transition">
+    Nouvelles
+  </Link>
+ 
+  <Link href="/watchlist" className="hover:text-blue-600 transition">
+    Watchlist
+  </Link>
+ 
+  <Link href="/analyse" className="hover:text-blue-600 transition">
+    Analyse Boursière
+  </Link>
+</nav>
+ 
+      <h1 className="text-4xl font-bold mt-6">Simulation Boursière 📈</h1>
  
       {/* Infos principales */}
       <div className="grid grid-cols-3 gap-8 text-center">
@@ -60,12 +79,12 @@ export default function StockSimulation() {
         </div>
  
         <div className="p-6 bg-white shadow rounded-xl">
-          <h2 className="text-sm text-zinc-500">Votre solde</h2>
+         <h2 className="text-sm text-zinc-500">Solde</h2>
           <p className="text-3xl font-bold">{balance.toFixed(2)} $</p>
         </div>
  
         <div className="p-6 bg-white shadow rounded-xl">
-          <h2 className="text-sm text-zinc-500">Vos actions</h2>
+          <h2 className="text-sm text-zinc-500">Actions détenues</h2>
           <p className="text-3xl font-bold">{shares}</p>
         </div>
       </div>
@@ -100,10 +119,10 @@ export default function StockSimulation() {
           {history.map((p, i) => {
             if (i === 0) return null;
  
-            const x1 = (i - 1) * (300 / history.length);
+            const x1 = ((i - 1) / history.length) * 300;
             const y1 = 100 - (history[i - 1] / Math.max(...history)) * 100;
  
-            const x2 = i * (300 / history.length);
+            const x2 = (i / history.length) * 300;
             const y2 = 100 - (p / Math.max(...history)) * 100;
  
             return (
