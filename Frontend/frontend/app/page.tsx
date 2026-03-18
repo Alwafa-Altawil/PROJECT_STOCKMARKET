@@ -69,7 +69,7 @@ export default function StockSimulation() {
   </Link>
 </nav>
  
-      <h1 className="text-4xl font-bold mt-6">Simulation Boursière 📈</h1>
+      <h1 className="text-4xl font-bold mt-6">Simulation Boursière </h1>
  
       {/* Infos principales */}
       <div className="grid grid-cols-3 gap-8 text-center">
