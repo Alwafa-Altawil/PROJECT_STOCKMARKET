@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
  
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -20,6 +21,7 @@ class Transaction(models.Model):
     quantity = models.IntegerField()
     price = models.FloatField()
     type = models.CharField(max_length=4)
+    timestamp = models.DateTimeField(default=timezone.now)
 
 
 
