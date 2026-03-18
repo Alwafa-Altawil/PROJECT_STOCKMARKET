@@ -132,8 +132,8 @@ export default function StockSimulation() {
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke="#0ea5e9"
-                strokeWidth="2"
+                stroke="#74ff24ff"
+                strokeWidth="3"
               />
             );
           })}
