@@ -74,7 +74,7 @@ export default function StockSimulation() {
 
       })
 
-      .catch((err) => console.error(err));
+      .catch((err: any) => console.error(err));
  
     axios
 
@@ -94,7 +94,7 @@ export default function StockSimulation() {
 
       })
 
-      .catch((err) => console.error(err));
+      .catch((err: any) => console.error(err));
 
   }, []);
  
@@ -148,7 +148,7 @@ export default function StockSimulation() {
 
       })
 
-      .catch((err) => alert(err.response?.data.error || "Error buying stock"));
+      .catch((err: { response: { data: { error: any; }; }; }) => alert(err.response?.data.error || "Error buying stock"));
 
   };
  
@@ -194,7 +194,7 @@ export default function StockSimulation() {
 
       })
 
-      .catch((err) => alert(err.response?.data.error || "Error selling stock"));
+      .catch((err: { response: { data: { error: any; }; }; }) => alert(err.response?.data.error || "Error selling stock"));
 
   };
  
