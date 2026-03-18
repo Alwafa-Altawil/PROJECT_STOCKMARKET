@@ -1,7 +1,11 @@
-from django.urls import path
-from .views import *
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import StockViewSet, PortfolioViewSet
+ 
+router = DefaultRouter()
+router.register(r'stocks', StockViewSet)
+router.register(r'portfolio', PortfolioViewSet)
  
 urlpatterns = [
-    path('portfolio/', get_portfolio),
-    path('buy/', buy_stock),
+    path('api/', include(router.urls)),
 ]
