@@ -5,6 +5,9 @@ from django.utils import timezone
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     balance = models.FloatField(default=10000)
+
+def __str__(self):
+    return f"{self.user.username}'s profile"
  
 class Stock(models.Model):
     symbol = models.CharField(max_length=10)
