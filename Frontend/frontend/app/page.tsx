@@ -14,7 +14,7 @@ export default function StockApp() {
   // Simulation du flux boursier en arrière-plan
   useEffect(() => {
     const interval = setInterval(() => {
-      const change = (Math.random() - 0.5) * 8;
+      const change = (Math.random() - 0.35) * 8;
       setPrice((prev) => {
         const newPrice = Math.max(1, prev + change);
         setHistory((prevH) => [...prevH.slice(1), newPrice]);
@@ -56,7 +56,7 @@ export default function StockApp() {
         {activeTab === "portfolio" && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StatCard title="Prix Action" value={`${price.toFixed(2)} $`} />
+              <StatCard title="Prix par Action" value={`${price.toFixed(2)} $`} />
               <StatCard title="Mon Solde" value={`${balance.toFixed(2)} $`} />
               <StatCard title="Actions" value={shares.toString()} />
             </div>
