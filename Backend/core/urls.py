@@ -6,5 +6,6 @@ router = DefaultRouter()
 router.register(r'stocks', StockViewSet)
 router.register(r'portfolio', PortfolioViewSet, basename='portfolio') 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    # backend/urls.py already mounts this module under /api/
+    path('', include(router.urls)),
 ]
