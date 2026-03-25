@@ -14,7 +14,7 @@ export default function StockApp() {
   // Simulation du flux boursier en arrière-plan
   useEffect(() => {
     const interval = setInterval(() => {
-      const change = (Math.random() ) * 4;
+      const change = (Math.random() - 0.5) * 8;
       setPrice((prev) => {
         const newPrice = Math.max(1, prev + change);
         setHistory((prevH) => [...prevH.slice(1), newPrice]);
