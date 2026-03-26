@@ -1,3 +1,4 @@
+# pyright: reportIncompatibleVariableOverride=false
 from rest_framework import serializers
 from .models import Forecast, Portfolio, Profile, Stock, StockPrice, Transaction
 

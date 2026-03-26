@@ -16,7 +16,7 @@ class TradingFlowTests(APITestCase):
 
     def test_buy_and_sell_flow(self):
         buy_response = self.client.post(
-            "/api/trade/buy/", {"stock_id": self.stock.id, "quantity": 10}, format="json"
+            "/api/trade/buy/", {"stock_id": self.stock.pk, "quantity": 10}, format="json"
         )
         self.assertEqual(buy_response.status_code, 200)
 
@@ -24,7 +24,7 @@ class TradingFlowTests(APITestCase):
         self.assertEqual(position.quantity, 10)
 
         sell_response = self.client.post(
-            "/api/trade/sell/", {"stock_id": self.stock.id, "quantity": 4}, format="json"
+            "/api/trade/sell/", {"stock_id": self.stock.pk, "quantity": 4}, format="json"
         )
         self.assertEqual(sell_response.status_code, 200)
 
@@ -34,7 +34,7 @@ class TradingFlowTests(APITestCase):
     def test_monte_carlo_forecast_endpoint(self):
         response = self.client.post(
             "/api/forecast/monte-carlo/",
-            {"stock_id": self.stock.id, "horizon_days": 30, "paths": 1000},
+            {"stock_id": self.stock.pk, "horizon_days": 30, "paths": 1000},
             format="json",
         )
         self.assertEqual(response.status_code, 201)

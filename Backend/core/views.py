@@ -289,7 +289,7 @@ def market_tick(request):
         stock.price = _to_money(new_price)
         stock.save(update_fields=["price", "updated_at"])
         StockPrice.objects.create(stock=stock, close=stock.price)
-        updated.append({"stock_id": stock.id, "symbol": stock.symbol, "price": stock.price})
+        updated.append({"stock_id": stock.pk, "symbol": stock.symbol, "price": stock.price})
  
     return Response({"updated": updated})
  
