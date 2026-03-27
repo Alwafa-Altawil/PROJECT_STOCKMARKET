@@ -7,8 +7,8 @@ from django.utils import timezone
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=10000)
-    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=10000)
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000)
+    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -95,6 +95,7 @@ class Forecast(models.Model):
 
 
 @receiver(post_save, sender=User)
-def create_profile(sender, instance, created, **kwargs):
+def create_profile_and_portfolio(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
+        Portfolio.objects.create(user=instance)

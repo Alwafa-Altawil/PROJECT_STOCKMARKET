@@ -169,12 +169,14 @@ def sell_stock(request):
         proceeds = _to_money(stock.price * quantity)
         holding.quantity -= quantity
         if holding.quantity == 0:
-            holding.average_buy_price = Decimal("0")
+            holding.delete()
+            holding = None
  
         profile.balance = _to_money(profile.balance + proceeds)
         profile.save()
         portfolio.save(update_fields=["updated_at"])
-        holding.save()
+        if holding is not None:
+            holding.save()
  
         Transaction.objects.create(
             user=request.user,
