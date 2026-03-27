@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from rest_framework.test import APITestCase
 
-from .models import Portfolio, Stock, StockPrice
+from .models import Portfolio, PortfolioHolding, Stock, StockPrice
 
 
 class TradingFlowTests(APITestCase):
@@ -20,7 +20,8 @@ class TradingFlowTests(APITestCase):
         )
         self.assertEqual(buy_response.status_code, 200)
 
-        position = Portfolio.objects.get(user=self.user, stock=self.stock)
+        portfolio = Portfolio.objects.get(user=self.user)
+        position = PortfolioHolding.objects.get(portfolio=portfolio, stock=self.stock)
         self.assertEqual(position.quantity, 10)
 
         sell_response = self.client.post(

@@ -36,14 +36,25 @@ class StockPrice(models.Model):
 
 
 class Portfolio(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="portfolio")
+    stocks = models.ManyToManyField(Stock, through="PortfolioHolding", related_name="portfolios")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s portfolio"
+
+
+class PortfolioHolding(models.Model):
+    portfolio = models.ForeignKey(
+        Portfolio, on_delete=models.CASCADE, related_name="holdings"
+    )
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="holdings")
     quantity = models.PositiveIntegerField(default=0)
     average_buy_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("user", "stock")
+        unique_together = ("portfolio", "stock")
 
 
 class Transaction(models.Model):

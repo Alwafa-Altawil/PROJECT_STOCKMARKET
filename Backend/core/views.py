@@ -8,9 +8,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
  
-from .models import Forecast, Portfolio, Profile, Stock, StockPrice, Transaction
+from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
 from .serializers import (
     ForecastSerializer,
+    PortfolioHoldingSerializer,
     PortfolioSerializer,
     StockSerializer,
     TransactionSerializer,
@@ -56,17 +57,20 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
  
     def get_queryset(self):
-        return Portfolio.objects.filter(user=self.request.user).select_related("stock")
+        return Portfolio.objects.filter(user=self.request.user).prefetch_related("holdings__stock")
  
  
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_portfolio(request):
-    holdings = Portfolio.objects.filter(user=request.user).select_related("stock")
-    positions = PortfolioSerializer(holdings, many=True).data
+    portfolio, _ = Portfolio.objects.get_or_create(user=request.user)
+    holdings = PortfolioHolding.objects.filter(
+        portfolio=portfolio, quantity__gt=0
+    ).select_related("stock")
+    positions = PortfolioHoldingSerializer(holdings, many=True).data
  
     profile, _ = Profile.objects.get_or_create(user=request.user)
-    market_value = sum((p.quantity * p.stock.price for p in holdings), Decimal("0"))
+    market_value = sum((h.quantity * h.stock.price for h in holdings), Decimal("0"))
     equity = profile.balance + market_value
  
     return Response(
@@ -103,21 +107,25 @@ def buy_stock(request):
     with db_transaction.atomic():
         profile, _ = Profile.objects.select_for_update().get_or_create(user=request.user)
         portfolio, _ = Portfolio.objects.select_for_update().get_or_create(
-            user=request.user, stock=stock
+            user=request.user
+        )
+        holding, _ = PortfolioHolding.objects.select_for_update().get_or_create(
+            portfolio=portfolio, stock=stock
         )
         cost = _to_money(stock.price * quantity)
         if profile.balance < cost:
             return Response({"error": "not enough balance"}, status=status.HTTP_400_BAD_REQUEST)
  
-        previous_qty = portfolio.quantity
+        previous_qty = holding.quantity
         new_qty = previous_qty + quantity
-        weighted_cost = (portfolio.average_buy_price * previous_qty) + (stock.price * quantity)
+        weighted_cost = (holding.average_buy_price * previous_qty) + (stock.price * quantity)
  
         profile.balance = _to_money(profile.balance - cost)
-        portfolio.quantity = new_qty
-        portfolio.average_buy_price = _to_money(weighted_cost / new_qty)
+        holding.quantity = new_qty
+        holding.average_buy_price = _to_money(weighted_cost / new_qty)
         profile.save()
-        portfolio.save()
+        portfolio.save(update_fields=["updated_at"])
+        holding.save()
  
         Transaction.objects.create(
             user=request.user,
@@ -147,24 +155,26 @@ def sell_stock(request):
  
     with db_transaction.atomic():
         profile, _ = Profile.objects.select_for_update().get_or_create(user=request.user)
+        portfolio, _ = Portfolio.objects.select_for_update().get_or_create(user=request.user)
         try:
-            portfolio = Portfolio.objects.select_for_update().get(
-                user=request.user, stock=stock
+            holding = PortfolioHolding.objects.select_for_update().get(
+                portfolio=portfolio, stock=stock
             )
-        except Portfolio.DoesNotExist:
+        except PortfolioHolding.DoesNotExist:
             return Response({"error": "no position for this stock"}, status=status.HTTP_400_BAD_REQUEST)
  
-        if portfolio.quantity < quantity:
+        if holding.quantity < quantity:
             return Response({"error": "not enough shares"}, status=status.HTTP_400_BAD_REQUEST)
  
         proceeds = _to_money(stock.price * quantity)
-        portfolio.quantity -= quantity
-        if portfolio.quantity == 0:
-            portfolio.average_buy_price = Decimal("0")
+        holding.quantity -= quantity
+        if holding.quantity == 0:
+            holding.average_buy_price = Decimal("0")
  
         profile.balance = _to_money(profile.balance + proceeds)
         profile.save()
-        portfolio.save()
+        portfolio.save(update_fields=["updated_at"])
+        holding.save()
  
         Transaction.objects.create(
             user=request.user,

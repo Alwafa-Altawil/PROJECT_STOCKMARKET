@@ -1,6 +1,14 @@
 # pyright: reportIncompatibleVariableOverride=false
 from rest_framework import serializers
-from .models import Forecast, Portfolio, Profile, Stock, StockPrice, Transaction
+from .models import (
+    Forecast,
+    Portfolio,
+    PortfolioHolding,
+    Profile,
+    Stock,
+    StockPrice,
+    Transaction,
+)
 
 
 class StockSerializer(serializers.ModelSerializer):
@@ -16,10 +24,18 @@ class StockPriceSerializer(serializers.ModelSerializer):
 
 
 class PortfolioSerializer(serializers.ModelSerializer):
-    stock = StockSerializer()
+    holdings_count = serializers.IntegerField(source="holdings.count", read_only=True)
 
     class Meta:
         model = Portfolio
+        fields = "__all__"
+
+
+class PortfolioHoldingSerializer(serializers.ModelSerializer):
+    stock = StockSerializer()
+
+    class Meta:
+        model = PortfolioHolding
         fields = "__all__"
 
 
