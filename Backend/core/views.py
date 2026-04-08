@@ -5,7 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction as db_transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
  
 from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
@@ -16,6 +16,18 @@ from .serializers import (
     StockSerializer,
     TransactionSerializer,
 )
+from .simulator import MarketSimulator
+from django.contrib.auth.models import User
+
+
+# Helper function for development - get or create a demo user
+def get_demo_user():
+    """Get or create a demo user for development."""
+    user, _ = User.objects.get_or_create(
+        username='demo',
+        defaults={'email': 'demo@example.com'}
+    )
+    return user
  
  
 def _to_money(value):
@@ -54,22 +66,23 @@ class StockViewSet(viewsets.ModelViewSet):
  
 class PortfolioViewSet(viewsets.ModelViewSet):
     serializer_class = PortfolioSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
  
     def get_queryset(self): # type: ignore
-        return Portfolio.objects.filter(user=self.request.user).prefetch_related("holdings__stock")
+        return Portfolio.objects.all().prefetch_related("holdings__stock")
  
  
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_portfolio(request):
-    portfolio, _ = Portfolio.objects.get_or_create(user=request.user)
+    user = get_demo_user()
+    portfolio, _ = Portfolio.objects.get_or_create(user=user)
     holdings = PortfolioHolding.objects.filter(
         portfolio=portfolio, quantity__gt=0
     ).select_related("stock")
-    positions = PortfolioHoldingSerializer(holdings, many=True).data
+    position = PortfolioHoldingSerializer(holdings, many=True).data
  
-    profile, _ = Profile.objects.get_or_create(user=request.user)
+    profile, _ = Profile.objects.get_or_create(user=user)
     market_value = sum((h.quantity * h.stock.price for h in holdings), Decimal("0"))
     equity = profile.balance + market_value
  
@@ -78,21 +91,23 @@ def get_portfolio(request):
             "balance": profile.balance,
             "market_value": market_value.quantize(Decimal("0.01")),
             "equity": equity.quantize(Decimal("0.01")),
-            "positions": positions,
+            "positions": position,
         }
     )
  
  
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_transactions(request):
-    rows = Transaction.objects.filter(user=request.user).select_related("stock")[:100]
+    user = get_demo_user()
+    rows = Transaction.objects.filter(user=user).select_related("stock")[:100]
     return Response(TransactionSerializer(rows, many=True).data)
  
  
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def buy_stock(request):
+    user = get_demo_user()
     stock_id = request.data.get("stock_id")
     quantity = int(request.data.get("quantity", 0))
  
@@ -100,14 +115,14 @@ def buy_stock(request):
         return Response({"error": "quantity must be > 0"}, status=status.HTTP_400_BAD_REQUEST)
  
     try:
-        stock = Stock.objects.get(id=stock_id, is_active=True)
+        stock = Stock.objects.get(pk=stock_id, is_active=True)
     except Stock.DoesNotExist:
         return Response({"error": "stock not found"}, status=status.HTTP_404_NOT_FOUND)
  
     with db_transaction.atomic():
-        profile, _ = Profile.objects.select_for_update().get_or_create(user=request.user)
+        profile, _ = Profile.objects.select_for_update().get_or_create(user=user)
         portfolio, _ = Portfolio.objects.select_for_update().get_or_create(
-            user=request.user
+            user=user
         )
         holding, _ = PortfolioHolding.objects.select_for_update().get_or_create(
             portfolio=portfolio, stock=stock
@@ -127,8 +142,8 @@ def buy_stock(request):
         portfolio.save(update_fields=["updated_at"])
         holding.save()
  
-        Transaction.objects.create(
-            user=request.user,
+        transaction = Transaction.objects.create(
+            user=user,
             stock=stock,
             quantity=quantity,
             price=stock.price,
@@ -136,12 +151,36 @@ def buy_stock(request):
             notional=cost,
         )
  
-    return Response({"success": True, "balance": profile.balance})
+    # Calculate market value
+    all_holdings = PortfolioHolding.objects.filter(
+        portfolio=portfolio, quantity__gt=0
+    ).select_related("stock")
+    market_value = sum((h.quantity * h.stock.price for h in all_holdings), Decimal("0"))
+    equity = profile.balance + market_value
+    
+    return Response({
+        "success": True,
+        "transaction": {
+            "id": transaction.pk,
+            "stock_id": stock.pk,
+            "symbol": stock.symbol,
+            "quantity": quantity,
+            "price": float(stock.price),
+            "total": float(cost),
+            "timestamp": transaction.timestamp.isoformat(),
+        },
+        "portfolio": {
+            "balance": float(profile.balance),
+            "market_value": float(market_value),
+            "equity": float(equity),
+        },
+    })
  
  
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def sell_stock(request):
+    user = get_demo_user()
     stock_id = request.data.get("stock_id")
     quantity = int(request.data.get("quantity", 0))
  
@@ -149,13 +188,13 @@ def sell_stock(request):
         return Response({"error": "quantity must be > 0"}, status=status.HTTP_400_BAD_REQUEST)
  
     try:
-        stock = Stock.objects.get(id=stock_id, is_active=True)
+        stock = Stock.objects.get(pk=stock_id, is_active=True)
     except Stock.DoesNotExist:
         return Response({"error": "stock not found"}, status=status.HTTP_404_NOT_FOUND)
  
     with db_transaction.atomic():
-        profile, _ = Profile.objects.select_for_update().get_or_create(user=request.user)
-        portfolio, _ = Portfolio.objects.select_for_update().get_or_create(user=request.user)
+        profile, _ = Profile.objects.select_for_update().get_or_create(user=user)
+        portfolio, _ = Portfolio.objects.select_for_update().get_or_create(user=user)
         try:
             holding = PortfolioHolding.objects.select_for_update().get(
                 portfolio=portfolio, stock=stock
@@ -178,8 +217,8 @@ def sell_stock(request):
         if holding is not None:
             holding.save()
  
-        Transaction.objects.create(
-            user=request.user,
+        transaction = Transaction.objects.create(
+            user=user,
             stock=stock,
             quantity=quantity,
             price=stock.price,
@@ -187,12 +226,36 @@ def sell_stock(request):
             notional=proceeds,
         )
  
-    return Response({"success": True, "balance": profile.balance})
+    # Calculate market value
+    all_holdings = PortfolioHolding.objects.filter(
+        portfolio=portfolio, quantity__gt=0
+    ).select_related("stock")
+    market_value = sum((h.quantity * h.stock.price for h in all_holdings), Decimal("0"))
+    equity = profile.balance + market_value
+    
+    return Response({
+        "success": True,
+        "transaction": {
+            "id": transaction.pk,
+            "stock_id": stock.pk,
+            "symbol": stock.symbol,
+            "quantity": quantity,
+            "price": float(stock.price),
+            "total": float(proceeds),
+            "timestamp": transaction.timestamp.isoformat(),
+        },
+        "portfolio": {
+            "balance": float(profile.balance),
+            "market_value": float(market_value),
+            "equity": float(equity),
+        },
+    })
  
  
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def create_monte_carlo_forecast(request):
+    user = get_demo_user()
     stock_id = request.data.get("stock_id")
     horizon_days = int(request.data.get("horizon_days", 30))
     paths = int(request.data.get("paths", 5000))
@@ -209,7 +272,7 @@ def create_monte_carlo_forecast(request):
         )
  
     try:
-        stock = Stock.objects.get(id=stock_id, is_active=True)
+        stock = Stock.objects.get(pk=stock_id, is_active=True)
     except Stock.DoesNotExist:
         return Response({"error": "stock not found"}, status=status.HTTP_404_NOT_FOUND)
  
@@ -239,7 +302,7 @@ def create_monte_carlo_forecast(request):
     probability_up = sum(1 for val in simulated if val >= float(stock.price)) / len(simulated)
  
     forecast = Forecast.objects.create(
-        user=request.user,
+        user=user,
         stock=stock,
         horizon_days=horizon_days,
         paths=paths,
@@ -255,14 +318,15 @@ def create_monte_carlo_forecast(request):
  
  
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_forecasts(request):
-    rows = Forecast.objects.filter(user=request.user).select_related("stock")[:50]
+    user = get_demo_user()
+    rows = Forecast.objects.filter(user=user).select_related("stock")[:50]
     return Response(ForecastSerializer(rows, many=True).data)
  
  
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def record_price(request):
     stock_id = request.data.get("stock_id")
     price = request.data.get("price")
@@ -285,30 +349,80 @@ def record_price(request):
  
  
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def market_tick(request):
     daily_volatility = float(request.data.get("daily_volatility", 0.015))
-    if daily_volatility <= 0 or daily_volatility > 0.2:
+    daily_drift = float(request.data.get("daily_drift", 0.0001))
+    
+    try:
+        updated = MarketSimulator.tick(
+            daily_volatility=daily_volatility,
+            daily_drift=daily_drift
+        )
+        return Response({"updated": updated, "count": len(updated)})
+    except ValueError as e:
         return Response(
-            {"error": "daily_volatility must be between 0 and 0.2"},
+            {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
- 
-    updated = []
-    for stock in Stock.objects.filter(is_active=True):
-        move = random.gauss(0, daily_volatility)
-        new_price = max(float(stock.price) * math.exp(move), 0.5)
-        stock.price = _to_money(new_price)
-        stock.save(update_fields=["price", "updated_at"])
-        StockPrice.objects.create(stock=stock, close=stock.price)
-        updated.append({"stock_id": stock.pk, "symbol": stock.symbol, "price": stock.price})
- 
-    return Response({"updated": updated})
- 
- 
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def market_state(request):
+    """Get current market state with all active stocks, prices, and price history."""
+    market_data = MarketSimulator.get_market_state()
+    return Response(market_data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def portfolio_status(request):
+    """Get current user portfolio status with balance, holdings, and market value."""
+    user = get_demo_user()
+    portfolio, _ = Portfolio.objects.get_or_create(user=user)
+    profile, _ = Profile.objects.get_or_create(user=user)
+    
+    holdings = PortfolioHolding.objects.filter(
+        portfolio=portfolio, quantity__gt=0
+    ).select_related("stock")
+    
+    holdings_data = []
+    market_value = Decimal("0")
+    
+    for holding in holdings:
+        position_value = holding.quantity * holding.stock.price
+        market_value += position_value
+        
+        holdings_data.append({
+            "stock_id": holding.stock.pk,
+            "symbol": holding.stock.symbol,
+            "name": holding.stock.name,
+            "quantity": holding.quantity,
+            "current_price": float(holding.stock.price),
+            "average_buy_price": float(holding.average_buy_price),
+            "position_value": float(position_value),
+            "unrealized_gain": float(position_value - (holding.average_buy_price * holding.quantity)),
+        })
+    
+    equity = profile.balance + market_value
+    
+    return Response({
+        "balance": float(profile.balance),
+        "market_value": float(market_value),
+        "equity": float(equity),
+        "starting_balance": float(profile.starting_balance),
+        "total_gain": float(equity - profile.starting_balance),
+        "total_return_pct": float((equity - profile.starting_balance) / profile.starting_balance * 100) if profile.starting_balance > 0 else 0,
+        "holdings": holdings_data,
+        "updated_at": portfolio.updated_at.isoformat(),
+    })
+
+
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def seed_stocks(request):
+    """Initialize default stocks in the database."""
     defaults = [
         {"symbol": "AAPL", "name": "Apple Inc.", "price": Decimal("180.00")},
         {"symbol": "MSFT", "name": "Microsoft Corp.", "price": Decimal("420.00")},
