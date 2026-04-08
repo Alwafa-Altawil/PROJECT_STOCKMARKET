@@ -91,4 +91,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data["email"],
             password=validated_data["password"],
         )
+        # Safety net: ensure related objects exist even if signals are skipped.
+        Profile.objects.get_or_create(user=user)
+        Portfolio.objects.get_or_create(user=user)
         return user
