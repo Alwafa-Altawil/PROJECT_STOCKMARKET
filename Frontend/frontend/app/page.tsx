@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 
 export default function StockApp() {
-  const [activeTab, setActiveTab] = useState("portfolio");
+  const [activeTab, setActiveTab] = useState<string>("portfolio");
   
   // États partagés (Prix et Portefeuille)
   const [price, setPrice] = useState<number>(100);
@@ -35,7 +35,7 @@ export default function StockApp() {
       
       <nav className="bg-white border-b border-zinc-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex justify-around">
-          {["portfolio", "watchlist", "analyse", "nouvelles"].map((tab) => (
+          {["portfolio", "watchlist", "analyse", "nouvelles"].map((tab: string) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -101,7 +101,7 @@ export default function StockApp() {
         {activeTab === "nouvelles" && (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold mb-6">Dernières Nouvelles</h2>
-            {[1, 2, 3].map(n => (
+            {[1, 2, 3].map((n: number) => (
               <div key={n} className="p-4 bg-white rounded-xl border border-zinc-100">
                 <div className="h-2 w-20 bg-blue-100 rounded mb-2"></div>
                 <div className="h-4 w-full bg-zinc-100 rounded"></div>
