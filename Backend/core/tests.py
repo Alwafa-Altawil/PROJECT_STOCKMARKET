@@ -9,7 +9,7 @@ from .models import Portfolio, PortfolioHolding, Profile, Stock, StockPrice
 class TradingFlowTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="student", password="pass123")
-        self.client.force_authenticate(user=self.user)
+        self.client.force_authenticate(user=self.user) # type: ignore
         self.stock = Stock.objects.create(symbol="AAPL", name="Apple", price=Decimal("100.00"))
         for i in range(30):
             StockPrice.objects.create(stock=self.stock, close=Decimal(100 + i))
@@ -47,7 +47,7 @@ class TradingFlowTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertIn("probability_up", response.data)
+        self.assertIn("probability_up", response.data) # type: ignore
 
     def test_selling_all_shares_removes_holding(self):
         self.client.post("/api/trade/buy/", {"stock_id": self.stock.pk, "quantity": 2}, format="json")

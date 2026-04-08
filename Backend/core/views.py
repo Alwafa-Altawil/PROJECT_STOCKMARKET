@@ -56,7 +56,7 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     serializer_class = PortfolioSerializer
     permission_classes = [IsAuthenticated]
  
-    def get_queryset(self):
+    def get_queryset(self): # type: ignore
         return Portfolio.objects.filter(user=self.request.user).prefetch_related("holdings__stock")
  
  

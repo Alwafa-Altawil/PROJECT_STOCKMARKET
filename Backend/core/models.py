@@ -7,8 +7,8 @@ from django.utils import timezone
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000)
-    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000)
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) # type: ignore
+    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) # type: ignore
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -50,7 +50,7 @@ class PortfolioHolding(models.Model):
     )
     stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="holdings")
     quantity = models.PositiveIntegerField(default=0)
-    average_buy_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    average_buy_price = models.DecimalField(max_digits=12, decimal_places=2, default=0) # type: ignore
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -71,7 +71,7 @@ class Transaction(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2)
     type = models.CharField(max_length=4, choices=TYPES)
     timestamp = models.DateTimeField(default=timezone.now)
-    notional = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    notional = models.DecimalField(max_digits=14, decimal_places=2, default=0) # type: ignore
 
     class Meta:
         ordering = ["-timestamp"]
