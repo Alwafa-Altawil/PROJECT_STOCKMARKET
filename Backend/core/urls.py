@@ -20,7 +20,7 @@ router = DefaultRouter()
 router.register(r'stocks', StockViewSet)
 router.register(r'portfolio', PortfolioViewSet, basename='portfolio') 
 urlpatterns = [
-    path('', include(router.urls)),
+    # Routes spécifiques - DOIVENT être avant include(router.urls)
     path("portfolio/summary/", get_portfolio),
     path("portfolio/status/", portfolio_status),
     path("transactions/", get_transactions),
@@ -32,4 +32,6 @@ urlpatterns = [
     path("forecast/monte-carlo/", create_monte_carlo_forecast),
     path("forecast/history/", get_forecasts),
     path("seed/stocks/", seed_stocks),
+    # Routes du routeur - APRÈS les routes spécifiques
+    path('', include(router.urls)),
 ]
