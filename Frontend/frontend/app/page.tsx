@@ -1,23 +1,24 @@
 "use client";
 
+import React from "react";
 import { useState, useEffect } from "react";
 
 export default function StockApp() {
   const [activeTab, setActiveTab] = useState("portfolio");
   
   // États partagés (Prix et Portefeuille)
-  const [price, setPrice] = useState(100);
+  const [price, setPrice] = useState<number>(100);
   const [history, setHistory] = useState<number[]>(new Array(40).fill(100));
-  const [balance, setBalance] = useState(10000);
-  const [shares, setShares] = useState(0);
+  const [balance, setBalance] = useState<number>(10000);
+  const [shares, setShares] = useState<number>(0);
 
   // Simulation du flux boursier en arrière-plan
   useEffect(() => {
     const interval = setInterval(() => {
       const change = (Math.random() - 0.49) * 8;
-      setPrice((prev) => {
+      setPrice((prev: number) => {
         const newPrice = Math.max(1, prev + change);
-        setHistory((prevH) => [...prevH.slice(1), newPrice]);
+        setHistory((prevH: number[]) => [...prevH.slice(1), newPrice]);
         return newPrice;
       });
     }, 1500);
@@ -25,8 +26,8 @@ export default function StockApp() {
   }, []);
 
   // Actions
-  const buy = () => { if (balance >= price) { setShares(s => s + 1); setBalance(b => b - price); } };
-  const sell = () => { if (shares > 0) { setShares(s => s - 1); setBalance(b => b + price); } };
+  const buy = () => { if (balance >= price) { setShares((s: number) => s + 1); setBalance((b: number) => b - price); } };
+  const sell = () => { if (shares > 0) { setShares((s: number) => s - 1); setBalance((b: number) => b + price); } };
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
@@ -69,7 +70,7 @@ export default function StockApp() {
                     fill="none"
                     stroke="#2563eb"
                     strokeWidth="3"
-                    points={history.map((p, i) => `${i * (400/39)},${100 - (p / (Math.max(...history) * 1.2) * 100)}`).join(" ")}
+                    points={history.map((p: number, i: number) => `${i * (400/39)},${100 - (p / (Math.max(...history) * 1.2) * 100)}`).join(" ")}
                   />
                 </svg>
               </div>
