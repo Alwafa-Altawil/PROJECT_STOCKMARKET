@@ -1,14 +1,61 @@
+# pyright: reportIncompatibleVariableOverride=false
 from rest_framework import serializers
-from .models import *
- 
+from .models import (
+    Forecast,
+    Portfolio,
+    PortfolioHolding,
+    Profile,
+    Stock,
+    StockPrice,
+    Transaction,
+)
+
+
 class StockSerializer(serializers.ModelSerializer):
     class Meta:
         model = Stock
-        fields = '__all__'
- 
+        fields = "__all__"
+
+
+class StockPriceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockPrice
+        fields = "__all__"
+
+
 class PortfolioSerializer(serializers.ModelSerializer):
-    stock = StockSerializer()
- 
+    holdings_count = serializers.IntegerField(source="holdings.count", read_only=True)
+
     class Meta:
         model = Portfolio
-        fields = '__all__'
+        fields = "__all__"
+
+
+class PortfolioHoldingSerializer(serializers.ModelSerializer):
+    stock = StockSerializer()
+
+    class Meta:
+        model = PortfolioHolding
+        fields = "__all__"
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+    stock = StockSerializer()
+
+    class Meta:
+        model = Transaction
+        fields = "__all__"
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = "__all__"
+
+
+class ForecastSerializer(serializers.ModelSerializer):
+    stock = StockSerializer()
+
+    class Meta:
+        model = Forecast
+        fields = "__all__"
