@@ -7,27 +7,19 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
  
 from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
 from .serializers import (
     ForecastSerializer,
     PortfolioHoldingSerializer,
     PortfolioSerializer,
+    RegisterSerializer,
     StockSerializer,
     TransactionSerializer,
 )
 from .simulator import MarketSimulator
-from django.contrib.auth.models import User
-
-
-# Helper function for development - get or create a demo user
-def get_demo_user():
-    """Get or create a demo user for development."""
-    user, _ = User.objects.get_or_create(
-        username='demo',
-        defaults={'email': 'demo@example.com'}
-    )
-    return user
  
  
 def _to_money(value):
@@ -66,16 +58,16 @@ class StockViewSet(viewsets.ModelViewSet):
  
 class PortfolioViewSet(viewsets.ModelViewSet):
     serializer_class = PortfolioSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
  
     def get_queryset(self): # type: ignore
-        return Portfolio.objects.all().prefetch_related("holdings__stock")
+        return Portfolio.objects.filter(user=self.request.user).prefetch_related("holdings__stock")
  
  
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_portfolio(request):
-    user = get_demo_user()
+    user = request.user
     portfolio, _ = Portfolio.objects.get_or_create(user=user)
     holdings = PortfolioHolding.objects.filter(
         portfolio=portfolio, quantity__gt=0
@@ -97,17 +89,17 @@ def get_portfolio(request):
  
  
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_transactions(request):
-    user = get_demo_user()
+    user = request.user
     rows = Transaction.objects.filter(user=user).select_related("stock")[:100]
     return Response(TransactionSerializer(rows, many=True).data)
  
  
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def buy_stock(request):
-    user = get_demo_user()
+    user = request.user
     stock_id = request.data.get("stock_id")
     quantity = int(request.data.get("quantity", 0))
  
@@ -178,9 +170,9 @@ def buy_stock(request):
  
  
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def sell_stock(request):
-    user = get_demo_user()
+    user = request.user
     stock_id = request.data.get("stock_id")
     quantity = int(request.data.get("quantity", 0))
  
@@ -253,9 +245,9 @@ def sell_stock(request):
  
  
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def create_monte_carlo_forecast(request):
-    user = get_demo_user()
+    user = request.user
     stock_id = request.data.get("stock_id")
     horizon_days = int(request.data.get("horizon_days", 30))
     paths = int(request.data.get("paths", 5000))
@@ -318,9 +310,9 @@ def create_monte_carlo_forecast(request):
  
  
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_forecasts(request):
-    user = get_demo_user()
+    user = request.user
     rows = Forecast.objects.filter(user=user).select_related("stock")[:50]
     return Response(ForecastSerializer(rows, many=True).data)
  
@@ -376,10 +368,10 @@ def market_state(request):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def portfolio_status(request):
     """Get current user portfolio status with balance, holdings, and market value."""
-    user = get_demo_user()
+    user = request.user
     portfolio, _ = Portfolio.objects.get_or_create(user=user)
     profile, _ = Profile.objects.get_or_create(user=user)
     
@@ -442,3 +434,34 @@ def seed_stocks(request):
         StockPrice.objects.get_or_create(stock=stock, close=stock.price)
  
     return Response({"created": created, "count": len(created)})
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register(request):
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(
+            {"id": user.id, "username": user.username, "email": user.email},
+            status=status.HTTP_201_CREATED,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+login = TokenObtainPairView.as_view()
+refresh = TokenRefreshView.as_view()
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout(request):
+    refresh_token = request.data.get("refresh")
+    if not refresh_token:
+        return Response({"error": "refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+    except Exception:
+        return Response({"error": "invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)

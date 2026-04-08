@@ -90,7 +90,7 @@ export default function StockApp() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Fetch market state
+  
   const fetchMarketState = async () => {
     try {
       const response = await api.get("/market/state/");
@@ -104,7 +104,7 @@ export default function StockApp() {
     }
   };
 
-  // Fetch portfolio status
+  
   const fetchPortfolio = async () => {
     try {
       const response = await api.get("/portfolio/status/");
@@ -114,7 +114,7 @@ export default function StockApp() {
     }
   };
 
-  // Update market prices
+  
   const updateMarketPrices = async () => {
     try {
       const response = await api.post("/market/tick/", {
@@ -122,7 +122,7 @@ export default function StockApp() {
         daily_drift: 0.0001,
       });
       
-      // Update stocks with new prices
+      
       const tickData: MarketTickResponse = response.data;
       setStocks((prevStocks) => {
         const stockMap = new Map(tickData.updated.map((s) => [s.id, s]));
