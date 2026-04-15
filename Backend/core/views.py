@@ -442,7 +442,7 @@ def register(request):
     if serializer.is_valid():
         user = serializer.save()
         return Response(
-            {"id": user.id, "username": user.username, "email": user.email},
+            {"id": user.id, "username": user.username, "email": user.email}, #type: ignore
             status=status.HTTP_201_CREATED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
