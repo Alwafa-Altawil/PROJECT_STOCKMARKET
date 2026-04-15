@@ -13,6 +13,14 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Type definitions
 interface Stock {
   id: number;
@@ -89,8 +97,111 @@ export default function StockApp() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [credentials, setCredentials] = useState({ username: "", password: "", email: "" });
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  
+  
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/login/`,
+        {
+          username: credentials.username,
+          password: credentials.password,
+        }
+      );
+
+      localStorage.setItem("access_token", response.data.access);
+      localStorage.setItem("refresh_token", response.data.refresh);
+      
+      api.defaults.headers.Authorization = `Bearer ${response.data.access}`;
+      
+      setIsAuthenticated(true);
+      setCredentials({ username: "", password: "", email: "" });
+      setLoading(true); 
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Login failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/register/`,
+        {
+          username: credentials.username,
+          email: credentials.email,
+          password: credentials.password,
+        }
+      );
+
+      setSuccessMessage("Registration successful! Logging you in...");
+      
+      
+      const loginResponse = await axios.post(
+        `${API_BASE_URL}/auth/login/`,
+        {
+          username: credentials.username,
+          password: credentials.password,
+        }
+      );
+
+      localStorage.setItem("access_token", loginResponse.data.access);
+      localStorage.setItem("refresh_token", loginResponse.data.refresh);
+      
+      api.defaults.headers.Authorization = `Bearer ${loginResponse.data.access}`;
+      
+      setIsAuthenticated(true);
+      setCredentials({ username: "", password: "", email: "" });
+      setLoading(true); 
+    } catch (err: any) {
+      setError(err.response?.data?.username?.[0] || err.response?.data?.email?.[0] || "Registration failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  
+  const handleLogout = async () => {
+    try {
+      const refresh_token = localStorage.getItem("refresh_token");
+      if (refresh_token) {
+        await api.post("/auth/logout/", { refresh: refresh_token });
+      }
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      setIsAuthenticated(false);
+      setPortfolio(null);
+      setStocks([]);
+    }
+  };
+
   const fetchMarketState = async () => {
     try {
       const response = await api.get("/market/state/");
@@ -193,8 +304,10 @@ export default function StockApp() {
     }
   };
 
-  // Initialize and set up polling
+  
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const initialize = async () => {
       setLoading(true);
       await fetchMarketState();
@@ -204,7 +317,6 @@ export default function StockApp() {
 
     initialize();
 
-    // Market update interval (every 1.5 seconds like the original)
     const marketInterval = setInterval(updateMarketPrices, 1500);
 
     // Portfolio refresh interval (every 5 seconds)
@@ -214,7 +326,177 @@ export default function StockApp() {
       clearInterval(marketInterval);
       clearInterval(portfolioInterval);
     };
-  }, []);
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 border border-zinc-100">
+            {/* Logo/Title */}
+            <div className="mb-8 text-center">
+              <h1 className="text-4xl font-black text-blue-600 mb-2">StockMarket</h1>
+              <p className="text-zinc-600">Trading Simulator</p>
+            </div>
+
+            {/* Notifications */}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            {successMessage && (
+              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {successMessage}
+              </div>
+            )}
+
+            {/* Auth Mode Tabs */}
+            <div className="flex gap-2 mb-8 bg-zinc-100 p-1 rounded-lg">
+              <button
+                onClick={() => {
+                  setAuthMode("login");
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={`flex-1 py-2 px-4 rounded-md font-bold transition-all ${
+                  authMode === "login"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => {
+                  setAuthMode("register");
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={`flex-1 py-2 px-4 rounded-md font-bold transition-all ${
+                  authMode === "register"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Register
+              </button>
+            </div>
+
+            {/* Login Form */}
+            {authMode === "login" && (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={credentials.username}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, username: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Enter your username"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={credentials.password}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, password: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Enter your password"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {authLoading ? "Logging in..." : "Login"}
+                </button>
+              </form>
+            )}
+
+            {/* Register Form */}
+            {authMode === "register" && (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={credentials.username}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, username: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Choose a username"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={credentials.email}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, email: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={credentials.password}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, password: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    placeholder="Create a password"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {authLoading ? "Creating account..." : "Register"}
+                </button>
+              </form>
+            )}
+
+            <p className="text-center text-xs text-zinc-500 mt-6">
+              Stock Market Simulator • Demo Trading Platform
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && stocks.length === 0) {
     return (
@@ -228,20 +510,28 @@ export default function StockApp() {
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
       {/* Navigation */}
       <nav className="bg-white border-b border-zinc-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex justify-around">
-          {["portfolio", "watchlist", "analyse", "nouvelles"].map((tab: string) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`py-4 px-2 text-sm font-bold uppercase tracking-widest transition-all border-b-2 ${
-                activeTab === tab
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-zinc-400 hover:text-zinc-600"
-              }`}
-            >
-              {tab.replace("analyse", "analyse boursière")}
-            </button>
-          ))}
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div className="flex justify-around flex-1">
+            {["portfolio", "watchlist", "analyse", "nouvelles"].map((tab: string) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`py-4 px-2 text-sm font-bold uppercase tracking-widest transition-all border-b-2 ${
+                  activeTab === tab
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-zinc-400 hover:text-zinc-600"
+                }`}
+              >
+                {tab.replace("analyse", "analyse boursière")}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-4 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
+          >
+            Logout
+          </button>
         </div>
       </nav>
 
@@ -465,4 +755,5 @@ export default function StockApp() {
       </main>
     </div>
   );
+
 }
