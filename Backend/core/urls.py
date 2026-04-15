@@ -17,6 +17,7 @@ from .views import (
     register,
     seed_stocks,
     seed_stocks_from_alpha_vantage,
+    reset_market,
     sell_stock,
     refresh,
 )
@@ -38,6 +39,7 @@ urlpatterns = [
     path("prices/record/", record_price),
     path("market/tick/", market_tick),
     path("market/state/", market_state),
+    path("market/reset/", reset_market),
     path("forecast/monte-carlo/", create_monte_carlo_forecast),
     path("forecast/history/", get_forecasts),
     path("seed/stocks/", seed_stocks),

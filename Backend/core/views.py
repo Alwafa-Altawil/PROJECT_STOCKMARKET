@@ -454,6 +454,21 @@ def seed_stocks_from_alpha_vantage(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+def reset_market(request):
+    """Reset market to initial state by clearing all data."""
+    Stock.objects.all().delete()
+    StockPrice.objects.all().delete()
+    Portfolio.objects.all().delete()
+    PortfolioHolding.objects.all().delete()
+    Transaction.objects.all().delete()
+    Profile.objects.all().delete()
+    Forecast.objects.all().delete()
+    MarketSimulator.reset_history()
+    return Response({"success": True, "message": "Market reset to initial state."})
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
