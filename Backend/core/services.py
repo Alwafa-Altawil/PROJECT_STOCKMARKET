@@ -4,14 +4,22 @@ from dotenv import load_dotenv
 from django.core.cache import cache
 import logging
 
+# Load environment variables
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 class AlphaVantageClient:
     def __init__(self):
-        self.api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        # Fetch the key securely from the .env file
+        self.api_key = os.getenv("ALPHA_VANTAGE_KEY")
         self.base_url = "https://www.alphavantage.co/query"
-    
+        
+        # Crash loudly with a helpful message if the key is missing
+        if not self.api_key:
+            error_msg = "API Key not configured! Please ensure ALPHA_VANTAGE_KEY is set in your .env file."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
     def get_daily_data(self, symbol):
         """Récupère les données quotidiennes"""
         cache_key = f"av_daily_{symbol}"
@@ -28,8 +36,15 @@ class AlphaVantageClient:
             response = requests.get(self.base_url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
+            
+            # 3. Check if Alpha Vantage returned an API error inside the JSON
+            if "Error Message" in data:
+                logger.error(f"Alpha Vantage API Error: {data['Error Message']}")
+                return None
+                
             cache.set(cache_key, data, 3600)  # Cache 1 heure
             return data
-        except Exception as e:
-            logger.error(f"Erreur API: {e}")
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network/Request Error: {e}")
             return None
