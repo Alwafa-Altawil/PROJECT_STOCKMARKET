@@ -9,6 +9,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+import os
  
 from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
 from .serializers import (
@@ -437,12 +439,27 @@ def seed_stocks(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+def seed_stocks_from_alpha_vantage(request):
+    """Seed stocks using Alpha Vantage API."""
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+    if not api_key:
+        return Response({"error": "API key not configured"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    try:
+        created = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+        return Response({"created": created, "count": len(created)}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
         return Response(
-            {"id": user.id, "username": user.username, "email": user.email},
+            {"id": user.id, "username": user.username, "email": user.email}, #type: ignore
             status=status.HTTP_201_CREATED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

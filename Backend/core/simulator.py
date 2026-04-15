@@ -7,6 +7,10 @@ import random
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 from .models import Stock, StockPrice
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _to_money(value):
@@ -115,3 +119,76 @@ class MarketSimulator:
     def reset_history(cls):
         """Reset price history (useful for testing)."""
         cls._price_history = {}
+    
+    @classmethod
+    def seed_stocks_from_alpha_vantage(cls, api_key):
+        """
+        Seed stocks from Alpha Vantage API.
+        
+        Args:
+            api_key: Alpha Vantage API key
+        
+        Returns:
+            List of created stock symbols
+        """
+        try:
+            base_url = "https://www.alphavantage.co/query"
+            
+            # List of popular stocks to fetch
+            symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN']
+            created = []
+            
+            for symbol in symbols:
+                try:
+                    params = {
+                        'function': 'GLOBAL_QUOTE',
+                        'symbol': symbol,
+                        'apikey': api_key,
+                    }
+                    
+                    response = requests.get(base_url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if 'Global Quote' not in data or not data['Global Quote']:
+                        logger.warning(f"No data returned for {symbol}")
+                        continue
+                    
+                    quote = data['Global Quote']
+                    price_str = quote.get('05. price', '0')
+                    
+                    if not price_str or price_str == '0':
+                        logger.warning(f"Invalid price for {symbol}: {price_str}")
+                        continue
+                    
+                    latest_price = float(price_str)
+                    
+                    # Create or update stock
+                    stock, was_created = Stock.objects.get_or_create(
+                        symbol=symbol,
+                        defaults={
+                            'name': quote.get('01. symbol', symbol),
+                            'price': _to_money(latest_price),
+                            'is_active': True,
+                        }
+                    )
+                    
+                    # Record initial price
+                    StockPrice.objects.get_or_create(
+                        stock=stock,
+                        close=_to_money(latest_price)
+                    )
+                    
+                    if was_created:
+                        created.append(symbol)
+                        logger.info(f"Created stock {symbol} with price {latest_price}")
+                    
+                except Exception as e:
+                    logger.error(f"Error fetching {symbol}: {str(e)}")
+                    continue
+            
+            return created
+        
+        except Exception as e:
+            logger.error(f"Error in seed_stocks_from_alpha_vantage: {str(e)}")
+            raise

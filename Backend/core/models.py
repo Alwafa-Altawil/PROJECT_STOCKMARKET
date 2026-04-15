@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
+from alpha_vantage.timeseries import TimeSeries
+import os
 
 
 class Profile(models.Model):
@@ -90,3 +92,11 @@ class Forecast(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+class AlphaVantageData(models.Model):
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="alpha_vantage_data")
+    data = models.JSONField()
+    retrieved_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-retrieved_at"]
