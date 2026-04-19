@@ -6,6 +6,7 @@ from .views import (
     buy_stock,
     create_monte_carlo_forecast,
     get_forecasts,
+    get_forecast_paths,
     get_portfolio,
     get_transactions,
     login,
@@ -39,6 +40,7 @@ urlpatterns = [
     path("market/state/", market_state),
     path("forecast/monte-carlo/", create_monte_carlo_forecast),
     path("forecast/history/", get_forecasts),
+    path("forecast/<int:forecast_id>/paths/", get_forecast_paths),
     path("seed/stocks/", seed_stocks),
     # Routes du routeur - APRÈS les routes spécifiques
     path('', include(router.urls)),

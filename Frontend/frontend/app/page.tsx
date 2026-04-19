@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMarket } from "@/hooks/useMarket";
 import { AuthForm } from "@/components/AuthForm";
 import { StatCard } from "@/components/StatCard";
+import { ChartComponent } from "@/components/ChartComponent";
+import { ForecastModal } from "@/components/ForecastModal";
 import { Stock, PortfolioStatus, Forecast } from "@/types";
 
 
@@ -15,6 +17,8 @@ export default function StockApp() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [forecastHorizonDays, setForecastHorizonDays] = useState<number>(30);
   const [forecastPaths, setForecastPaths] = useState<number>(5000);
+  const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
+  const [forecastModalOpen, setForecastModalOpen] = useState(false);
 
   const auth = useAuth();
   const market = useMarket();
@@ -213,41 +217,13 @@ export default function StockApp() {
                   </select>
                 </div>
 
-                <div className="h-64">
-                  <svg viewBox="0 0 400 150" className="w-full h-full">
-                    {selectedStock &&
-                      selectedStock.history &&
-                      selectedStock.history.length > 0 && (
-                        <>
-                          <text x="0" y="20" fontSize="12" fill="#a1a1a1">
-                            ${Math.max(...selectedStock.history).toFixed(0)}
-                          </text>
-                          <text x="0" y="150" fontSize="12" fill="#a1a1a1">
-                            ${Math.min(...selectedStock.history).toFixed(0)}
-                          </text>
-
-                          <polyline
-                            fill="none"
-                            stroke="#2563eb"
-                            strokeWidth="2"
-                            points={selectedStock.history
-                              .map((p: number, i: number) => {
-                                const x =
-                                  (i * 380) /
-                                    Math.max(selectedStock.history!.length - 1, 1) +
-                                  10;
-                                const minPrice = Math.min(...selectedStock.history!);
-                                const maxPrice = Math.max(...selectedStock.history!);
-                                const range = maxPrice - minPrice || 1;
-                                const y = 130 - ((p - minPrice) / range) * 120;
-                                return `${x},${y}`;
-                              })
-                              .join(" ")}
-                          />
-                        </>
-                      )}
-                  </svg>
-                </div>
+                {selectedStock && selectedStock.history && selectedStock.history.length > 0 ? (
+                  <ChartComponent data={selectedStock.history} symbol={selectedStock.symbol} height={256} />
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-zinc-400">
+                    No data available
+                  </div>
+                )}
 
                 <div className="mt-6 pt-6 border-t border-zinc-200">
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -610,6 +586,16 @@ export default function StockApp() {
 
                       <button
                         onClick={() => {
+                          setSelectedForecast(forecast);
+                          setForecastModalOpen(true);
+                        }}
+                        className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all text-sm mb-2"
+                      >
+                        Voir le Graphique
+                      </button>
+
+                      <button
+                        onClick={() => {
                           const fullStock = market.stocks.find(
                             (s) => s.id === forecast.stock.id
                           );
@@ -630,6 +616,15 @@ export default function StockApp() {
           </div>
         )}
       </main>
+
+      <ForecastModal
+        forecast={selectedForecast}
+        isOpen={forecastModalOpen}
+        onClose={() => {
+          setForecastModalOpen(false);
+          setSelectedForecast(null);
+        }}
+      />
     </div>
   );
 }

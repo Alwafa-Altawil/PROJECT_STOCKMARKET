@@ -49,6 +49,24 @@ def _monte_carlo_paths(start_price, drift, volatility, horizon_days, paths):
             price *= math.exp(drift_term + sigma_term * shock)
         results.append(price)
     return results
+
+
+def _monte_carlo_paths_full(start_price, drift, volatility, horizon_days, paths):
+    """Generate full Monte Carlo paths with all intermediate prices."""
+    all_paths = []
+    dt = 1 / 252
+    drift_term = (drift - 0.5 * volatility * volatility) * dt
+    sigma_term = volatility * math.sqrt(dt)
+
+    for _ in range(paths):
+        price = float(start_price)
+        path = [price]
+        for _ in range(horizon_days):
+            shock = random.gauss(0, 1)
+            price *= math.exp(drift_term + sigma_term * shock)
+            path.append(price)
+        all_paths.append(path)
+    return all_paths
  
  
 class StockViewSet(viewsets.ModelViewSet):
@@ -316,7 +334,39 @@ def get_forecasts(request):
     user = request.user
     rows = Forecast.objects.filter(user=user).select_related("stock")[:50]
     return Response(ForecastSerializer(rows, many=True).data)
- 
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_forecast_paths(request, forecast_id):
+    """Get Monte Carlo simulation paths for a forecast (sampled for performance)."""
+    try:
+        forecast = Forecast.objects.get(id=forecast_id, user=request.user)
+    except Forecast.DoesNotExist:
+        return Response({"error": "forecast not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # Only generate 150 sample paths instead of all paths
+    sample_paths = _monte_carlo_paths_full(
+        forecast.stock.price,
+        forecast.drift,
+        forecast.volatility,
+        forecast.horizon_days,
+        150  # Only generate 150 paths for display
+    )
+
+    # Also generate final prices for accurate percentile calculation
+    final_prices_sample = sorted([path[-1] for path in sample_paths])
+    p05 = final_prices_sample[int(len(final_prices_sample) * 0.05)]
+    p50 = final_prices_sample[int(len(final_prices_sample) * 0.50)]
+    p95 = final_prices_sample[int(len(final_prices_sample) * 0.95)]
+
+    return Response({
+        "forecast": ForecastSerializer(forecast).data,
+        "paths": sample_paths,
+        "percentile_5": float(p05),
+        "median": float(p50),
+        "percentile_95": float(p95),
+    })
  
 @api_view(["POST"])
 @permission_classes([AllowAny])
