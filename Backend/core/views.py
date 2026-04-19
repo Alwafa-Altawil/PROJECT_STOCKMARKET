@@ -54,6 +54,7 @@ def _monte_carlo_paths(start_price, drift, volatility, horizon_days, paths):
 class StockViewSet(viewsets.ModelViewSet):
     queryset = Stock.objects.all()
     serializer_class = StockSerializer
+    permission_classes = [AllowAny]
  
  
 class PortfolioViewSet(viewsets.ModelViewSet):
@@ -448,8 +449,8 @@ def register(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-login = TokenObtainPairView.as_view()
-refresh = TokenRefreshView.as_view()
+login = TokenObtainPairView.as_view(permission_classes=[AllowAny])
+refresh = TokenRefreshView.as_view(permission_classes=[AllowAny])
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

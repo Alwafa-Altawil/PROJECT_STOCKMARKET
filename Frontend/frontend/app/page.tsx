@@ -6,7 +6,17 @@ import axios from "axios";
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/core";
+
+// API instance for authenticated endpoints
 const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// API instance for public endpoints (no auth header)
+const publicApi = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
@@ -20,6 +30,39 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Handle token refresh on 401
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshToken = localStorage.getItem("refresh_token");
+        if (refreshToken) {
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/refresh/`,
+            { refresh: refreshToken }
+          );
+          
+          localStorage.setItem("access_token", response.data.access);
+          originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
+          
+          return api(originalRequest);
+        }
+      } catch (err) {
+        console.error("Token refresh failed:", err);
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Type definitions
 interface Stock {
@@ -64,6 +107,25 @@ interface MarketTickResponse {
   count: number;
 }
 
+interface Forecast {
+  id: number;
+  stock: {
+    id: number;
+    symbol: string;
+    name: string;
+    price: number;
+  };
+  horizon_days: number;
+  paths: number;
+  drift: number;
+  volatility: number;
+  percentile_5: number;
+  median: number;
+  percentile_95: number;
+  probability_up: number;
+  created_at: string;
+}
+
 interface StatCardProps {
   title: string;
   value: string;
@@ -94,24 +156,69 @@ export default function StockApp() {
   const [portfolio, setPortfolio] = useState<PortfolioStatus | null>(null);
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [credentials, setCredentials] = useState({ username: "", password: "", email: "" });
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [forecasts, setForecasts] = useState<Forecast[]>([]);
+  const [forecastLoading, setForecastLoading] = useState<boolean>(false);
+  const [forecastHorizonDays, setForecastHorizonDays] = useState<number>(30);
+  const [forecastPaths, setForecastPaths] = useState<number>(5000);
   
   
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
+      // Set the token in the API headers
+      api.defaults.headers.Authorization = `Bearer ${token}`;
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
       setLoading(false);
     }
   }, []);
+
+  // Load market data (public endpoint)
+  useEffect(() => {
+    const loadMarketData = async () => {
+      try {
+        await fetchMarketState();
+      } catch (err) {
+        console.error("Error loading market state:", err);
+      }
+    };
+    loadMarketData();
+  }, []);
+
+  // Load authenticated user data
+  useEffect(() => {
+    if (isAuthenticated) {
+      const initialize = async () => {
+        setLoading(true);
+        try {
+          await fetchPortfolio();
+          await fetchForecasts();
+        } catch (err) {
+          console.error("Error loading user data:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      initialize();
+
+      const marketInterval = setInterval(updateMarketPrices, 1500);
+      const portfolioInterval = setInterval(fetchPortfolio, 5000);
+
+      return () => {
+        clearInterval(marketInterval);
+        clearInterval(portfolioInterval);
+      };
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,7 +311,7 @@ export default function StockApp() {
 
   const fetchMarketState = async () => {
     try {
-      const response = await api.get("/market/state/");
+      const response = await publicApi.get("/market/state/");
       setStocks(response.data.stocks);
       if (response.data.stocks.length > 0) {
         setSelectedStock(response.data.stocks[0]);
@@ -221,14 +328,14 @@ export default function StockApp() {
       const response = await api.get("/portfolio/status/");
       setPortfolio(response.data);
     } catch (err: any) {
-      console.error("Error fetching portfolio:", err);
+      console.error("Error fetching portfolio:", err.response?.status, err.response?.data);
     }
   };
 
   
   const updateMarketPrices = async () => {
     try {
-      const response = await api.post("/market/tick/", {
+      const response = await publicApi.post("/market/tick/", {
         daily_volatility: 0.015,
         daily_drift: 0.0001,
       });
@@ -251,6 +358,42 @@ export default function StockApp() {
       });
     } catch (err: any) {
       console.error("Error updating market:", err);
+    }
+  };
+
+  const fetchForecasts = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setForecasts([]);
+        return;
+      }
+      const response = await api.get("/forecast/history/");
+      setForecasts(response.data);
+    } catch (err: any) {
+      // Silently fail if forecasts can't be loaded
+      console.error("Error fetching forecasts:", err);
+      setForecasts([]);
+    }
+  };
+
+  const createForecast = async (stockId: number) => {
+    try {
+      setForecastLoading(true);
+      const response = await api.post("/forecast/monte-carlo/", {
+        stock_id: stockId,
+        horizon_days: forecastHorizonDays,
+        paths: forecastPaths,
+      });
+      
+      setSuccessMessage(`Forecast created for ${response.data.stock.symbol}`);
+      await fetchForecasts();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Error creating forecast");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setForecastLoading(false);
     }
   };
 
@@ -304,29 +447,7 @@ export default function StockApp() {
     }
   };
 
-  
-  useEffect(() => {
-    if (!isAuthenticated) return;
 
-    const initialize = async () => {
-      setLoading(true);
-      await fetchMarketState();
-      await fetchPortfolio();
-      setLoading(false);
-    };
-
-    initialize();
-
-    const marketInterval = setInterval(updateMarketPrices, 1500);
-
-    // Portfolio refresh interval (every 5 seconds)
-    const portfolioInterval = setInterval(fetchPortfolio, 5000);
-
-    return () => {
-      clearInterval(marketInterval);
-      clearInterval(portfolioInterval);
-    };
-  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
@@ -555,7 +676,7 @@ export default function StockApp() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard 
                 title="Prix Sélectionné" 
-                value={selectedStock ? `$${selectedStock.price.toFixed(2)}` : "-"}
+                value={selectedStock ? `$${Number(selectedStock.price).toFixed(2)}` : "-"}
               />
               <StatCard 
                 title="Mon Solde" 
@@ -594,7 +715,7 @@ export default function StockApp() {
 
                 <div className="h-64">
                   <svg viewBox="0 0 400 150" className="w-full h-full">
-                    {selectedStock && selectedStock.history.length > 0 && (
+                    {selectedStock && selectedStock.history && selectedStock.history.length > 0 && (
                       <>
                         {/* Y-axis labels */}
                         <text x="0" y="20" fontSize="12" fill="#a1a1a1">
@@ -629,7 +750,7 @@ export default function StockApp() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-zinc-500">Prix Actuel</p>
-                      <p className="text-2xl font-bold">${selectedStock?.price.toFixed(2)}</p>
+                      <p className="text-2xl font-bold">${Number(selectedStock?.price).toFixed(2)}</p>
                     </div>
                     <div>
                       <p className="text-zinc-500">Dernier Tick</p>
@@ -667,14 +788,14 @@ export default function StockApp() {
                     <div>
                       <label className="block text-sm font-semibold text-zinc-700 mb-2">Cost</label>
                       <p className="text-lg font-bold">
-                        ${(quantity * selectedStock.price).toFixed(2)}
+                        ${(quantity * Number(selectedStock.price)).toFixed(2)}
                       </p>
                     </div>
 
                     <div className="flex gap-3 pt-4">
                       <button
                         onClick={buy}
-                        disabled={loading || !portfolio || quantity * selectedStock.price > portfolio.balance}
+                        disabled={loading || !portfolio || quantity * Number(selectedStock.price) > portfolio.balance}
                         className="flex-1 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ACHETER
@@ -733,16 +854,206 @@ export default function StockApp() {
 
         {/* Other Tabs */}
         {activeTab === "watchlist" && (
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold">Ma Liste de Surveillance</h2>
-            <p className="text-zinc-500">Ajoutez des entreprises ici pour suivre leurs performances.</p>
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
+              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+                Tous les Titres Disponibles
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200">
+                      <th className="text-left py-4 font-semibold text-zinc-700">Symbole</th>
+                      <th className="text-left py-4 font-semibold text-zinc-700">Nom</th>
+                      <th className="text-right py-4 font-semibold text-zinc-700">Prix Actuel</th>
+                      <th className="text-center py-4 font-semibold text-zinc-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stocks.map((stock) => (
+                      <tr key={stock.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                        <td className="py-4 font-bold text-blue-600">{stock.symbol}</td>
+                        <td className="py-4 text-zinc-700">{stock.name}</td>
+                        <td className="py-4 text-right font-semibold">${stock.price.toFixed(2)}</td>
+                        <td className="py-4 text-center">
+                          <div className="flex gap-2 justify-center">
+                            <input
+                              type="number"
+                              min="1"
+                              defaultValue="1"
+                              id={`qty-${stock.id}`}
+                              className="w-16 px-2 py-1 border border-zinc-300 rounded text-xs"
+                            />
+                            <button
+                              onClick={() => {
+                                const qty = parseInt(
+                                  (document.getElementById(`qty-${stock.id}`) as HTMLInputElement)?.value || "1"
+                                );
+                                setSelectedStock(stock);
+                                setQuantity(qty);
+                                setActiveTab("portfolio");
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white text-xs rounded-lg font-bold hover:bg-green-700 transition-all"
+                            >
+                              Acheter
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
         {activeTab === "analyse" && (
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold">Analyse Boursière</h2>
-            <p className="text-zinc-500">Indicateurs techniques et prédictions IA.</p>
+          <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Create Forecast */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
+              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+                Créer une Prédiction (Monte Carlo)
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Action</label>
+                  <select
+                    value={selectedStock?.id || ""}
+                    onChange={(e) => {
+                      const stock = stocks.find((s) => s.id === parseInt(e.target.value));
+                      setSelectedStock(stock || null);
+                    }}
+                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sélectionner une action</option>
+                    {stocks.map((stock) => (
+                      <option key={stock.id} value={stock.id}>
+                        {stock.symbol} - {stock.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Horizon (jours)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={forecastHorizonDays}
+                    onChange={(e) => setForecastHorizonDays(Math.max(1, Math.min(365, parseInt(e.target.value) || 30)))}
+                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Simulations</label>
+                  <select
+                    value={forecastPaths}
+                    onChange={(e) => setForecastPaths(parseInt(e.target.value))}
+                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="1000">1,000</option>
+                    <option value="5000">5,000</option>
+                    <option value="10000">10,000</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={() => selectedStock && createForecast(selectedStock.id)}
+                    disabled={forecastLoading || !selectedStock}
+                    className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {forecastLoading ? "Calcul..." : "Générer"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Forecasts History */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
+              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+                Mes Prédictions
+              </h2>
+              
+              {forecasts.length === 0 ? (
+                <p className="text-zinc-500 text-center py-8">Aucune prédiction. Créez-en une pour commencer!</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {forecasts.map((forecast) => (
+                    <div key={forecast.id} className="border border-zinc-200 rounded-2xl p-6 hover:shadow-md transition-all">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-blue-600">{forecast.stock.symbol}</h3>
+                          <p className="text-sm text-zinc-500">{forecast.stock.name}</p>
+                        </div>
+                        <p className="text-xs text-zinc-400">{new Date(forecast.created_at).toLocaleDateString()}</p>
+                      </div>
+
+                      <div className="space-y-3 mb-4">
+                        <div>
+                          <p className="text-xs text-zinc-500 mb-1">RÉSUMÉ</p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="font-bold text-red-600">${Number(forecast.percentile_5).toFixed(2)}</p>
+                              <p className="text-xs text-zinc-500">5e %ile</p>
+                            </div>
+                            <div>
+                              <p className="font-bold text-blue-600">${Number(forecast.median).toFixed(2)}</p>
+                              <p className="text-xs text-zinc-500">Médiane</p>
+                            </div>
+                            <div>
+                              <p className="font-bold text-green-600">${Number(forecast.percentile_95).toFixed(2)}</p>
+                              <p className="text-xs text-zinc-500">95e %ile</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-zinc-500 mb-1">PRIX ACTUEL</p>
+                          <p className="font-bold">${Number(forecast.stock.price).toFixed(2)}</p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-zinc-500 mb-1">PROBABILITÉ À LA HAUSSE</p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  forecast.probability_up > 0.5 ? "bg-green-600" : "bg-red-600"
+                                }`}
+                                style={{ width: `${forecast.probability_up * 100}%` }}
+                              />
+                            </div>
+                            <p className="font-bold text-sm">{(forecast.probability_up * 100).toFixed(1)}%</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-zinc-200 text-xs text-zinc-500">
+                          <p>Horizon: {forecast.horizon_days}j • Simulations: {forecast.paths.toLocaleString()}</p>
+                          <p>Volatilité: {(forecast.volatility * 100).toFixed(2)}% • Drift: {(forecast.drift * 100).toFixed(2)}%</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const fullStock = stocks.find((s) => s.id === forecast.stock.id);
+                          if (fullStock) {
+                            setSelectedStock(fullStock);
+                          }
+                          setActiveTab("portfolio");
+                        }}
+                        className="w-full py-2 border-2 border-blue-600 text-blue-600 rounded-lg font-bold hover:bg-blue-50 transition-all text-sm"
+                      >
+                        Acheter {forecast.stock.symbol}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
