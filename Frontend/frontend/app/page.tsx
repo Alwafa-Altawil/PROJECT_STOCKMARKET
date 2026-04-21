@@ -6,7 +6,8 @@ import { useMarket } from "@/hooks/useMarket";
 import { AuthForm } from "@/components/AuthForm";
 import { StatCard } from "@/components/StatCard";
 import { ChartComponent } from "@/components/ChartComponent";
-import { ForecastModal } from "@/components/ForecastModal";
+import { MiniChart } from "@/components/MiniChart";
+import { ForecastModalOptimized } from "@/components/ForecastModalOptimized";
 import { Stock, PortfolioStatus, Forecast } from "@/types";
 
 
@@ -36,6 +37,16 @@ export default function StockApp() {
       }
     });
   }, []);
+
+  // Keep selectedStock in sync with market updates (real-time chart updates)
+  useEffect(() => {
+    if (selectedStock && market.stocks.length > 0) {
+      const updatedStock = market.stocks.find((s) => s.id === selectedStock.id);
+      if (updatedStock) {
+        setSelectedStock(updatedStock);
+      }
+    }
+  }, [market.stocks]);
 
   // Load authenticated data when logged in
   useEffect(() => {
@@ -365,56 +376,62 @@ export default function StockApp() {
               <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
                 Tous les Titres Disponibles
               </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-200">
-                      <th className="text-left py-4 font-semibold text-zinc-700">Symbole</th>
-                      <th className="text-left py-4 font-semibold text-zinc-700">Nom</th>
-                      <th className="text-right py-4 font-semibold text-zinc-700">
-                        Prix Actuel
-                      </th>
-                      <th className="text-center py-4 font-semibold text-zinc-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {market.stocks.map((stock) => (
-                      <tr key={stock.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="py-4 font-bold text-blue-600">{stock.symbol}</td>
-                        <td className="py-4 text-zinc-700">{stock.name}</td>
-                        <td className="py-4 text-right font-semibold">
-                          ${Number(stock.price).toFixed(2)}
-                        </td>
-                        <td className="py-4 text-center">
-                          <div className="flex gap-2 justify-center">
-                            <input
-                              type="number"
-                              min="1"
-                              defaultValue="1"
-                              id={`qty-${stock.id}`}
-                              className="w-16 px-2 py-1 border border-zinc-300 rounded text-xs"
-                            />
-                            <button
-                              onClick={() => {
-                                const qty = parseInt(
-                                  (
-                                    document.getElementById(`qty-${stock.id}`) as HTMLInputElement
-                                  )?.value || "1"
-                                );
-                                setSelectedStock(stock);
-                                setQuantity(qty);
-                                setActiveTab("portfolio");
-                              }}
-                              className="px-4 py-2 bg-green-600 text-white text-xs rounded-lg font-bold hover:bg-green-700 transition-all"
-                            >
-                              Acheter
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {market.stocks.map((stock) => (
+                  <div
+                    key={stock.id}
+                    className="border border-zinc-200 rounded-2xl p-6 hover:shadow-md hover:border-blue-300 transition-all"
+                  >
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-blue-600">{stock.symbol}</h3>
+                        <p className="text-sm text-zinc-500">{stock.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold">${Number(stock.price).toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    {/* Mini Chart */}
+                    {stock.history && stock.history.length > 0 ? (
+                      <div className="mb-4">
+                        <MiniChart data={stock.history} symbol={stock.symbol} />
+                      </div>
+                    ) : (
+                      <div className="h-20 mb-4 bg-zinc-50 rounded-lg flex items-center justify-center text-xs text-zinc-400">
+                        Pas de données
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        defaultValue="1"
+                        id={`qty-${stock.id}`}
+                        placeholder="Quantité"
+                        className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={() => {
+                          const qty = parseInt(
+                            (
+                              document.getElementById(`qty-${stock.id}`) as HTMLInputElement
+                            )?.value || "1"
+                          );
+                          setSelectedStock(stock);
+                          setQuantity(qty);
+                          setActiveTab("portfolio");
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg font-bold hover:bg-green-700 transition-all active:scale-95"
+                      >
+                        Acheter
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -617,7 +634,7 @@ export default function StockApp() {
         )}
       </main>
 
-      <ForecastModal
+      <ForecastModalOptimized
         forecast={selectedForecast}
         isOpen={forecastModalOpen}
         onClose={() => {

@@ -2,16 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 
-interface ChartComponentProps {
+interface MiniChartProps {
   data: number[];
   symbol: string;
-  height?: number;
 }
 
-export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentProps) => {
+export const MiniChart = ({ data, symbol }: MiniChartProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
-  const resizeListenerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || !data || data.length === 0) return;
@@ -24,12 +22,12 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
           containerRef.current.innerHTML = '';
         }
 
-        // Load from CDN as fallback for library issues
+        // Load lightweight-charts from CDN
         if (!(window as any).LightweightCharts) {
           const script = document.createElement('script');
           script.src = 'https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js';
           script.async = true;
-          
+
           await new Promise((resolve, reject) => {
             script.onload = resolve;
             script.onerror = reject;
@@ -43,26 +41,40 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
 
         if (!containerRef.current) return;
 
-        const width = containerRef.current.clientWidth || 400;
-
+        const width = containerRef.current.clientWidth || 200;
         const chart = createChart(containerRef.current, {
           width: Math.max(width, 100),
-          height: Math.max(height, 100),
+          height: 80,
+          layout: {
+            textColor: '#626262',
+            background: { type: 'solid' as const, color: '#ffffff' },
+            fontSize: 10,
+          },
           timeScale: {
             timeVisible: false,
             secondsVisible: false,
           },
+          rightPriceScale: {
+            borderVisible: false,
+            autoScale: true,
+          },
+          crosshair: {
+            mode: 0, // Disabled for mini charts
+          },
+          grid: {
+            horzLines: { visible: false },
+            vertLines: { visible: false },
+          },
+          handleScale: false,
+          handleScroll: false,
         });
-
-        if (!chart || typeof chart.addLineSeries !== 'function') {
-          throw new Error('Chart initialization failed - invalid object');
-        }
 
         const areaSeries = chart.addAreaSeries({
           lineColor: '#2563eb',
           topColor: '#2563eb',
           bottomColor: 'rgba(37, 99, 235, 0.2)',
-          lineWidth: 2,
+          lineWidth: 1.5,
+          crosshairMarkerVisible: false,
         });
 
         const chartData = data.map((price, index) => ({
@@ -75,7 +87,8 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
 
         chartRef.current = chart;
 
-        const handleResize = () => {
+        // Auto resize on parent resize
+        const resizeObserver = new ResizeObserver(() => {
           if (containerRef.current && chartRef.current) {
             try {
               const newWidth = containerRef.current.clientWidth;
@@ -86,13 +99,23 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
               console.error('Resize error:', err);
             }
           }
-        };
+        });
 
-        resizeListenerRef.current = handleResize;
-        window.addEventListener('resize', handleResize);
+        if (containerRef.current) {
+          resizeObserver.observe(containerRef.current);
+        }
+
+        return () => {
+          resizeObserver.disconnect();
+          try {
+            chart.remove();
+          } catch {
+            // ignore
+          }
+        };
       } catch (error) {
         if (isMounted) {
-          console.error('Chart error:', error);
+          console.error('Mini chart error:', error);
           renderFallbackChart();
         }
       }
@@ -105,38 +128,32 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
         const range = max - min || 1;
         const points = data
           .map((price, i) => {
-            const x = (i / Math.max(data.length - 1, 1)) * 380 + 10;
-            const y = 180 - ((price - min) / range) * 160;
+            const x = (i / Math.max(data.length - 1, 1)) * 190 + 5;
+            const y = 65 - ((price - min) / range) * 50;
             return `${x},${y}`;
           })
           .join(' ');
 
         containerRef.current.innerHTML = `
-          <svg viewBox="0 0 400 200" style="width: 100%; height: 100%; display: block;">
+          <svg viewBox="0 0 200 80" style="width: 100%; height: 100%; display: block;">
             <defs>
-              <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#2563eb;stop-opacity:0.3" />
-                <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0" />
+              <linearGradient id="miniGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0.2" />
               </linearGradient>
             </defs>
-            <polyline fill="none" stroke="#2563eb" stroke-width="2" points="${points}" />
-            <polyline fill="url(#chartGradient)" stroke="none" points="${points} 400,200 0,200" />
+            <polyline fill="none" stroke="#2563eb" stroke-width="1.5" points="${points}" />
+            <polyline fill="url(#miniGradient)" stroke="none" points="${points} 200,80 0,80" />
           </svg>
         `;
       }
     };
 
-    loadAndRenderChart();
+    const cleanup = loadAndRenderChart();
 
-    // Proper cleanup function
     return () => {
       isMounted = false;
-
-      if (resizeListenerRef.current) {
-        window.removeEventListener('resize', resizeListenerRef.current);
-        resizeListenerRef.current = null;
-      }
-
+      cleanup?.then((fn: any) => fn?.());
       if (chartRef.current) {
         try {
           chartRef.current.remove();
@@ -146,17 +163,18 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
         }
       }
     };
-  }, [data, height]);
+  }, [data]);
 
   return (
     <div
       ref={containerRef}
       style={{
         width: '100%',
-        height: `${height}px`,
+        height: '80px',
         position: 'relative',
-        minHeight: `${height}px`,
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        border: '1px solid #f0f0f0',
       }}
     />
   );
