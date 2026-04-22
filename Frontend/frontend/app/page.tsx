@@ -46,6 +46,7 @@ interface PortfolioStatus {
 }
 
 interface MarketTickResponse {
+  source?: "simulated" | "alpha_vantage";
   updated: Array<{
     id: number;
     symbol: string;
@@ -87,6 +88,7 @@ export default function StockApp() {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
+  const [marketSource, setMarketSource] = useState<"simulated" | "alpha_vantage">("simulated");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -94,6 +96,7 @@ export default function StockApp() {
   const fetchMarketState = async () => {
     try {
       const response = await api.get("/market/state/");
+      setMarketSource(response.data.source || "simulated");
       setStocks(response.data.stocks);
       if (response.data.stocks.length > 0) {
         setSelectedStock(response.data.stocks[0]);
@@ -124,6 +127,9 @@ export default function StockApp() {
       
       
       const tickData: MarketTickResponse = response.data;
+      if (tickData.source) {
+        setMarketSource(tickData.source);
+      }
       setStocks((prevStocks) => {
         const stockMap = new Map(tickData.updated.map((s) => [s.id, s]));
         return prevStocks.map((stock) => {
@@ -140,6 +146,27 @@ export default function StockApp() {
       });
     } catch (err: any) {
       console.error("Error updating market:", err);
+    }
+  };
+
+  const switchMarketSource = async (source: "simulated" | "alpha_vantage") => {
+    try {
+      setLoading(true);
+      const response = await api.post("/market/source/", { source });
+      setMarketSource(response.data.source);
+      await fetchMarketState();
+      await fetchPortfolio();
+      setSuccessMessage(
+        source === "alpha_vantage"
+          ? "Source switched to Alpha Vantage"
+          : "Source switched to simulator data"
+      );
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Error switching market source");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -257,6 +284,30 @@ export default function StockApp() {
             {error}
           </div>
         )}
+        <div className="mb-4 p-4 bg-white border border-zinc-200 rounded-lg flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">Market Source</p>
+            <p className="text-sm font-bold text-zinc-800">
+              {marketSource === "alpha_vantage" ? "Alpha Vantage (live/fallback)" : "Simulator"}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => switchMarketSource("simulated")}
+              disabled={loading || marketSource === "simulated"}
+              className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-semibold disabled:opacity-50"
+            >
+              Simulator
+            </button>
+            <button
+              onClick={() => switchMarketSource("alpha_vantage")}
+              disabled={loading || marketSource === "alpha_vantage"}
+              className="px-3 py-2 rounded-lg border border-blue-500 text-blue-600 text-sm font-semibold disabled:opacity-50"
+            >
+              Alpha Vantage
+            </button>
+          </div>
+        </div>
 
         {/* Portfolio Tab */}
         {activeTab === "portfolio" && (

@@ -23,7 +23,18 @@ class MarketSimulator:
     
     # Store price history in memory for efficient retrieval
     _price_history = {}
+    _data_source = "simulated"
     MAX_HISTORY = 40
+
+    @classmethod
+    def get_data_source(cls):
+        return cls._data_source
+
+    @classmethod
+    def set_data_source(cls, source):
+        if source not in {"simulated", "alpha_vantage"}:
+            raise ValueError("source must be 'simulated' or 'alpha_vantage'")
+        cls._data_source = source
     
     @classmethod
     def initialize_history(cls):
@@ -112,6 +123,7 @@ class MarketSimulator:
         
         return {
             "timestamp": timezone.now().isoformat(),
+            "source": cls.get_data_source(),
             "stocks": stocks_data,
         }
     
@@ -131,64 +143,90 @@ class MarketSimulator:
         Returns:
             List of created stock symbols
         """
-        try:
-            base_url = "https://www.alphavantage.co/query"
-            
-            # List of popular stocks to fetch
-            symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN']
-            created = []
-            
-            for symbol in symbols:
+        base_url = "https://www.alphavantage.co/query"
+        watchlist = [
+            ("AAPL", "Apple Inc.", Decimal("180.00")),
+            ("MSFT", "Microsoft Corp.", Decimal("420.00")),
+            ("GOOGL", "Alphabet Inc.", Decimal("170.00")),
+            ("TSLA", "Tesla Inc.", Decimal("230.00")),
+            ("AMZN", "Amazon.com Inc.", Decimal("185.00")),
+        ]
+
+        created = []
+        updated = []
+        fallback = []
+        warnings = []
+        rate_limited = False
+        rate_limit_message = None
+
+        for symbol, default_name, default_price in watchlist:
+            latest_price = None
+
+            if api_key and not rate_limited:
                 try:
                     params = {
-                        'function': 'GLOBAL_QUOTE',
-                        'symbol': symbol,
-                        'apikey': api_key,
+                        "function": "GLOBAL_QUOTE",
+                        "symbol": symbol,
+                        "apikey": api_key,
                     }
-                    
                     response = requests.get(base_url, params=params, timeout=10)
                     response.raise_for_status()
                     data = response.json()
-                    
-                    if 'Global Quote' not in data or not data['Global Quote']:
-                        logger.warning(f"No data returned for {symbol}")
-                        continue
-                    
-                    quote = data['Global Quote']
-                    price_str = quote.get('05. price', '0')
-                    
-                    if not price_str or price_str == '0':
-                        logger.warning(f"Invalid price for {symbol}: {price_str}")
-                        continue
-                    
-                    latest_price = float(price_str)
-                    
-                    # Create or update stock
-                    stock, was_created = Stock.objects.get_or_create(
-                        symbol=symbol,
-                        defaults={
-                            'name': quote.get('01. symbol', symbol),
-                            'price': _to_money(latest_price),
-                            'is_active': True,
-                        }
-                    )
-                    
-                    # Record initial price
-                    StockPrice.objects.get_or_create(
-                        stock=stock,
-                        close=_to_money(latest_price)
-                    )
-                    
-                    if was_created:
-                        created.append(symbol)
-                        logger.info(f"Created stock {symbol} with price {latest_price}")
-                    
+
+                    if data.get("Note") or data.get("Information"):
+                        rate_limited = True
+                        rate_limit_message = data.get("Note") or data.get("Information")
+                        warnings.append(f"Alpha Vantage limit reached: {rate_limit_message}")
+                    elif data.get("Error Message"):
+                        warnings.append(f"Alpha Vantage error for {symbol}: {data['Error Message']}")
+                    else:
+                        quote = data.get("Global Quote") or {}
+                        price_str = quote.get("05. price")
+                        if price_str:
+                            latest_price = _to_money(price_str)
+                        else:
+                            warnings.append(f"No quote price returned for {symbol}")
                 except Exception as e:
-                    logger.error(f"Error fetching {symbol}: {str(e)}")
-                    continue
-            
-            return created
-        
-        except Exception as e:
-            logger.error(f"Error in seed_stocks_from_alpha_vantage: {str(e)}")
-            raise
+                    warnings.append(f"Failed to fetch {symbol} from Alpha Vantage: {str(e)}")
+
+            stock = Stock.objects.filter(symbol=symbol).first()
+            if latest_price is None:
+                if stock:
+                    latest_price = stock.price
+                    fallback.append(symbol)
+                else:
+                    latest_price = default_price
+                    fallback.append(symbol)
+
+            if stock is None:
+                stock = Stock.objects.create(
+                    symbol=symbol,
+                    name=default_name,
+                    price=latest_price,
+                    is_active=True,
+                )
+                created.append(symbol)
+            else:
+                stock.name = stock.name or default_name
+                stock.price = latest_price
+                stock.is_active = True
+                stock.save(update_fields=["name", "price", "is_active", "updated_at"])
+                updated.append(symbol)
+
+            StockPrice.objects.create(stock=stock, close=latest_price)
+
+        cls.initialize_history()
+        for stock in Stock.objects.filter(symbol__in=[row[0] for row in watchlist]):
+            history = cls._price_history.setdefault(stock.pk, [float(stock.price)] * cls.MAX_HISTORY)
+            history.append(float(stock.price))
+            if len(history) > cls.MAX_HISTORY:
+                cls._price_history[stock.pk] = history[-cls.MAX_HISTORY:]
+
+        return {
+            "created": created,
+            "updated": updated,
+            "fallback": fallback,
+            "warnings": warnings,
+            "rate_limited": rate_limited,
+            "rate_limit_message": rate_limit_message,
+        }

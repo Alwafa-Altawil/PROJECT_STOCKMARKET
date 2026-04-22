@@ -2,6 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from django.core.cache import cache
+from django.conf import settings
 import logging
 
 # Load environment variables
@@ -11,7 +12,11 @@ logger = logging.getLogger(__name__)
 class AlphaVantageClient:
     def __init__(self):
         # Fetch the key securely from the .env file
-        self.api_key = os.getenv("ALPHA_VANTAGE_KEY")
+        self.api_key = (
+            settings.ALPHA_VANTAGE_API_KEY
+            or os.getenv("ALPHA_VANTAGE_API_KEY")
+            or os.getenv("ALPHA_VANTAGE_KEY")
+        )
         self.base_url = "https://www.alphavantage.co/query"
         
         # Crash loudly with a helpful message if the key is missing

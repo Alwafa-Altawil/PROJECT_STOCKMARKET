@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 import os
  
+from django.conf import settings
 from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
 from .serializers import (
     ForecastSerializer,
@@ -51,6 +52,35 @@ def _monte_carlo_paths(start_price, drift, volatility, horizon_days, paths):
             price *= math.exp(drift_term + sigma_term * shock)
         results.append(price)
     return results
+
+
+def _seed_default_stocks_data():
+    defaults = [
+        {"symbol": "AAPL", "name": "Apple Inc.", "price": Decimal("180.00")},
+        {"symbol": "MSFT", "name": "Microsoft Corp.", "price": Decimal("420.00")},
+        {"symbol": "GOOGL", "name": "Alphabet Inc.", "price": Decimal("170.00")},
+        {"symbol": "TSLA", "name": "Tesla Inc.", "price": Decimal("230.00")},
+        {"symbol": "AMZN", "name": "Amazon.com Inc.", "price": Decimal("185.00")},
+    ]
+
+    created = []
+    updated = []
+    for row in defaults:
+        stock, was_created = Stock.objects.get_or_create(
+            symbol=row["symbol"],
+            defaults={"name": row["name"], "price": row["price"], "is_active": True},
+        )
+        if was_created:
+            created.append(stock.symbol)
+        else:
+            stock.name = row["name"]
+            stock.price = row["price"]
+            stock.is_active = True
+            stock.save(update_fields=["name", "price", "is_active", "updated_at"])
+            updated.append(stock.symbol)
+        StockPrice.objects.create(stock=stock, close=stock.price)
+
+    return {"created": created, "updated": updated, "count": len(created) + len(updated)}
  
  
 class StockViewSet(viewsets.ModelViewSet):
@@ -349,11 +379,24 @@ def market_tick(request):
     daily_drift = float(request.data.get("daily_drift", 0.0001))
     
     try:
+        source = MarketSimulator.get_data_source()
+        if source == "alpha_vantage":
+            api_key = settings.ALPHA_VANTAGE_API_KEY or os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+            seed_result = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+            market_data = MarketSimulator.get_market_state()
+            return Response(
+                {
+                    "source": source,
+                    "updated": market_data["stocks"],
+                    "count": len(market_data["stocks"]),
+                    "provider": seed_result,
+                }
+            )
         updated = MarketSimulator.tick(
             daily_volatility=daily_volatility,
             daily_drift=daily_drift
         )
-        return Response({"updated": updated, "count": len(updated)})
+        return Response({"source": source, "updated": updated, "count": len(updated)})
     except ValueError as e:
         return Response(
             {"error": str(e)},
@@ -365,8 +408,38 @@ def market_tick(request):
 @permission_classes([AllowAny])
 def market_state(request):
     """Get current market state with all active stocks, prices, and price history."""
+    if not Stock.objects.filter(is_active=True).exists():
+        api_key = settings.ALPHA_VANTAGE_API_KEY or os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+        try:
+            MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+        except Exception:
+            # Keep market/state available even when provider calls fail.
+            _seed_default_stocks_data()
+
     market_data = MarketSimulator.get_market_state()
     return Response(market_data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def market_source(request):
+    if request.method == "GET":
+        return Response({"source": MarketSimulator.get_data_source()})
+
+    source = request.data.get("source")
+    try:
+        MarketSimulator.set_data_source(source)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    if source == "alpha_vantage":
+        api_key = settings.ALPHA_VANTAGE_API_KEY or os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+        seed_result = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+        status_code = status.HTTP_207_MULTI_STATUS if seed_result["rate_limited"] else status.HTTP_200_OK
+        return Response({"source": source, "provider": seed_result}, status=status_code)
+
+    _seed_default_stocks_data()
+    return Response({"source": source, "message": "Simulator source enabled"}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -417,37 +490,22 @@ def portfolio_status(request):
 @permission_classes([AllowAny])
 def seed_stocks(request):
     """Initialize default stocks in the database."""
-    defaults = [
-        {"symbol": "AAPL", "name": "Apple Inc.", "price": Decimal("180.00")},
-        {"symbol": "MSFT", "name": "Microsoft Corp.", "price": Decimal("420.00")},
-        {"symbol": "GOOGL", "name": "Alphabet Inc.", "price": Decimal("170.00")},
-        {"symbol": "TSLA", "name": "Tesla Inc.", "price": Decimal("230.00")},
-        {"symbol": "AMZN", "name": "Amazon.com Inc.", "price": Decimal("185.00")},
-    ]
- 
-    created = []
-    for row in defaults:
-        stock, was_created = Stock.objects.get_or_create(
-            symbol=row["symbol"],
-            defaults={"name": row["name"], "price": row["price"], "is_active": True},
-        )
-        if was_created:
-            created.append(stock.symbol)
-        StockPrice.objects.get_or_create(stock=stock, close=stock.price)
- 
-    return Response({"created": created, "count": len(created)})
+    return Response(_seed_default_stocks_data())
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def seed_stocks_from_alpha_vantage(request):
     """Seed stocks using Alpha Vantage API."""
-    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-    if not api_key:
-        return Response({"error": "API key not configured"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    api_key = settings.ALPHA_VANTAGE_API_KEY or os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
     
     try:
-        created = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
-        return Response({"created": created, "count": len(created)}, status=status.HTTP_201_CREATED)
+        result = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+        status_code = status.HTTP_200_OK if result["updated"] else status.HTTP_201_CREATED
+        if result["rate_limited"]:
+            status_code = status.HTTP_207_MULTI_STATUS
+        return Response(result, status=status_code)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
