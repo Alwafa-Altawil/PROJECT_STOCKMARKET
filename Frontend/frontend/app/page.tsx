@@ -6,7 +6,6 @@ import { useMarket } from "@/hooks/useMarket";
 import { AuthForm } from "@/components/AuthForm";
 import { StatCard } from "@/components/StatCard";
 import { ChartComponent } from "@/components/ChartComponent";
-import { MiniChart } from "@/components/MiniChart";
 import { ForecastModalOptimized } from "@/components/ForecastModalOptimized";
 import { Stock, PortfolioStatus, Forecast } from "@/types";
 
@@ -373,65 +372,88 @@ export default function StockApp() {
         {activeTab === "watchlist" && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
-                Tous les Titres Disponibles
+              <h2 className="text-zinc-400 text-xs font-black uppercase mb-8 tracking-widest">
+                My Watchlist
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {market.stocks.map((stock) => (
-                  <div
-                    key={stock.id}
-                    className="border border-zinc-200 rounded-2xl p-6 hover:shadow-md hover:border-blue-300 transition-all"
-                  >
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-blue-600">{stock.symbol}</h3>
-                        <p className="text-sm text-zinc-500">{stock.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold">${Number(stock.price).toFixed(2)}</p>
-                      </div>
-                    </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-200">
+                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                        Ticker
+                      </th>
+                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                        Company Name
+                      </th>
+                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                        Last Price
+                      </th>
+                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                        Change
+                      </th>
+                      <th className="text-right py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                        Last 24 hours
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {market.stocks.map((stock) => {
+                      const priceChange = stock.history && stock.history.length > 1
+                        ? stock.history[stock.history.length - 1] - stock.history[0]
+                        : 0;
+                      const percentChange = stock.history && stock.history.length > 1
+                        ? ((priceChange / stock.history[0]) * 100).toFixed(2)
+                        : "0.00";
+                      const isPositive = parseFloat(percentChange) >= 0;
 
-                    {/* Mini Chart */}
-                    {stock.history && stock.history.length > 0 ? (
-                      <div className="mb-4">
-                        <MiniChart data={stock.history} symbol={stock.symbol} />
-                      </div>
-                    ) : (
-                      <div className="h-20 mb-4 bg-zinc-50 rounded-lg flex items-center justify-center text-xs text-zinc-400">
-                        Pas de données
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        defaultValue="1"
-                        id={`qty-${stock.id}`}
-                        placeholder="Quantité"
-                        className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={() => {
-                          const qty = parseInt(
-                            (
-                              document.getElementById(`qty-${stock.id}`) as HTMLInputElement
-                            )?.value || "1"
-                          );
-                          setSelectedStock(stock);
-                          setQuantity(qty);
-                          setActiveTab("portfolio");
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg font-bold hover:bg-green-700 transition-all active:scale-95"
-                      >
-                        Acheter
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                      return (
+                        <tr
+                          key={stock.id}
+                          className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setSelectedStock(stock);
+                            setActiveTab("portfolio");
+                          }}
+                        >
+                          <td className="py-5 px-6 font-bold text-zinc-900">{stock.symbol}</td>
+                          <td className="py-5 px-6 text-zinc-600">{stock.name}</td>
+                          <td className="py-5 px-6 font-semibold text-zinc-900">
+                            ${Number(stock.price).toFixed(2)}
+                          </td>
+                          <td className={`py-5 px-6 font-semibold ${isPositive ? "text-green-500" : "text-red-500"}`}>
+                            {isPositive ? "+" : ""}{percentChange}%
+                          </td>
+                          <td className="py-5 px-6 text-right">
+                            {stock.history && stock.history.length > 0 && (
+                              <svg
+                                className="w-16 h-10 mx-auto"
+                                viewBox="0 0 64 40"
+                                preserveAspectRatio="none"
+                              >
+                                <polyline
+                                  points={stock.history
+                                    .map((price, idx) => {
+                                      const x = (idx / Math.max(stock.history!.length - 1, 1)) * 64;
+                                      const minPrice = Math.min(...stock.history!);
+                                      const maxPrice = Math.max(...stock.history!);
+                                      const range = maxPrice - minPrice || 1;
+                                      const y = 40 - ((price - minPrice) / range) * 40;
+                                      return `${x},${y}`;
+                                    })
+                                    .join(" ")}
+                                  fill="none"
+                                  stroke={isPositive ? "#22c55e" : "#ef4444"}
+                                  strokeWidth="1.5"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                              </svg>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
