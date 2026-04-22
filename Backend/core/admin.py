@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import (
+from .models import ( #imported models de the models.py
     Forecast,
     Portfolio,
     PortfolioHolding,
@@ -9,7 +9,7 @@ from .models import (
     Transaction,
 )
 
-# Register your models here.
+#register les models dans l'admin panel
 admin.site.register(Stock)
 admin.site.register(StockPrice)
 admin.site.register(Portfolio)
