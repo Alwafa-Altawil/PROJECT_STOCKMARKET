@@ -113,6 +113,8 @@ class News(models.Model):
     sentiment = models.CharField(max_length=10, choices=SENTIMENT_CHOICES)
     impact_percentage = models.FloatField()  # Ex: 2.5 pour +2.5%, -1.5 pour -1.5%
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    ticks_until_effect = models.PositiveIntegerField(default=2)
+    is_price_applied = models.BooleanField(default=False)
     
     class Meta:
         ordering = ["-created_at"]

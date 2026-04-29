@@ -6,30 +6,22 @@ import { Stock } from "@/types";
 interface NewsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  stock?: Stock;
+  stocks: Stock[];
 }
 
-export const NewsModal: React.FC<NewsModalProps> = ({ isOpen, onClose, stock }) => {
-  const { news, loading, error, fetchLatestNews, generateNews } = useNews();
-  const [generating, setGenerating] = useState(false);
+export const NewsModal: React.FC<NewsModalProps> = ({ isOpen, onClose, stocks }) => {
+  const { news, loading, error, fetchLatestNews } = useNews();
+  const [selectedStockId, setSelectedStockId] = useState<number | null>(null);
+
+  const selectedStock = selectedStockId
+    ? stocks.find((item) => item.id === selectedStockId) || null
+    : null;
 
   useEffect(() => {
     if (isOpen) {
-      fetchLatestNews(stock?.id, 20);
+      fetchLatestNews(selectedStockId || undefined, 20);
     }
-  }, [isOpen, stock?.id, fetchLatestNews]);
-
-  const handleGenerateNews = async () => {
-    setGenerating(true);
-    try {
-      await generateNews(stock?.id);
-      await fetchLatestNews(stock?.id, 20);
-    } catch (err) {
-      console.error("Error generating news:", err);
-    } finally {
-      setGenerating(false);
-    }
-  };
+  }, [isOpen, selectedStockId, fetchLatestNews]);
 
   if (!isOpen) return null;
 
@@ -39,7 +31,7 @@ export const NewsModal: React.FC<NewsModalProps> = ({ isOpen, onClose, stock }) 
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">
-            {stock ? `${stock.symbol} News` : "Market News"}
+            {selectedStock ? `${selectedStock.symbol} News` : "Market News"}
           </h2>
           <button
             onClick={onClose}
@@ -51,6 +43,26 @@ export const NewsModal: React.FC<NewsModalProps> = ({ isOpen, onClose, stock }) 
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Filtrer par stock
+            </label>
+            <select
+              value={selectedStockId ?? ""}
+              onChange={(e) =>
+                setSelectedStockId(e.target.value ? Number.parseInt(e.target.value, 10) : null)
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">Tous les stocks</option>
+              {stocks.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.symbol} - {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {error && (
             <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
               Error: {error}
@@ -72,13 +84,9 @@ export const NewsModal: React.FC<NewsModalProps> = ({ isOpen, onClose, stock }) 
 
         {/* Footer */}
         <div className="flex gap-3 p-6 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={handleGenerateNews}
-            disabled={generating || loading}
-            className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 font-semibold transition-colors"
-          >
-            {generating ? "Generating..." : "Generate News"}
-          </button>
+          <div className="flex-1 px-4 py-2 text-sm text-gray-600 flex items-center justify-center">
+            {loading ? "Refreshing..." : "Auto-generation every 60s"}
+          </div>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 bg-gray-300 text-gray-900 rounded hover:bg-gray-400 font-semibold transition-colors"

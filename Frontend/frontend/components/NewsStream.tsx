@@ -16,7 +16,7 @@ export const NewsStream: React.FC<NewsStreamProps> = ({
   autoRefresh = true,
   refreshInterval = 60000, // 60 seconds
 }) => {
-  const { news, loading, error, fetchLatestNews, generateNews } = useNews();
+  const { news, loading, error, fetchLatestNews, triggerAutoNews } = useNews();
   const [displayedNews, setDisplayedNews] = useState<News[]>([]);
   const [animatingNews, setAnimatingNews] = useState<number | null>(null);
 
@@ -31,7 +31,7 @@ export const NewsStream: React.FC<NewsStreamProps> = ({
 
     const interval = setInterval(async () => {
       try {
-        const newNewsItem = await generateNews(stockId);
+        const newNewsItem = await triggerAutoNews();
         if (newNewsItem) {
           // Add animation class for new items
           setAnimatingNews(newNewsItem.id);
@@ -46,37 +46,18 @@ export const NewsStream: React.FC<NewsStreamProps> = ({
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, stockId, generateNews, fetchLatestNews]);
+  }, [autoRefresh, refreshInterval, stockId, triggerAutoNews, fetchLatestNews]);
 
   // Update displayed news when news changes
   useEffect(() => {
     setDisplayedNews(news);
   }, [news]);
 
-  const handleManualRefresh = async () => {
-    try {
-      const newNewsItem = await generateNews(stockId);
-      if (newNewsItem) {
-        setAnimatingNews(newNewsItem.id);
-        setTimeout(() => setAnimatingNews(null), 500);
-        await fetchLatestNews(stockId, 10);
-      }
-    } catch (err) {
-      console.error("Error refreshing news:", err);
-    }
-  };
-
   return (
     <div className="w-full bg-white rounded-lg shadow-md p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-        <button
-          onClick={handleManualRefresh}
-          disabled={loading}
-          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 text-sm font-semibold transition-colors"
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+        <span className="text-sm text-gray-500">Automatic updates only</span>
       </div>
 
       {error && (

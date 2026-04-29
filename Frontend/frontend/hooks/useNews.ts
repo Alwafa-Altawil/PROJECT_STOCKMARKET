@@ -28,22 +28,17 @@ export const useNews = () => {
     }
   }, []);
 
-  const generateNews = useCallback(async (stockId?: number) => {
+  const triggerAutoNews = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      if (stockId) {
-        const response = await api.post("/news/generate-stock/", { stock_id: stockId });
-        return response.data;
-      } else {
-        const response = await api.post("/news/generate/");
-        setNews(response.data.news);
-        return response.data.news;
-      }
+      const response = await api.post("/news/trigger-big/");
+      setNews((prev) => [response.data, ...prev]);
+      return response.data;
     } catch (err: any) {
-      const message = err.response?.data?.error || err.message || "Failed to generate news";
+      const message = err.response?.data?.error || err.message || "Failed to auto-generate news";
       setError(message);
-      console.error("Error generating news:", err);
+      console.error("Error auto-generating news:", err);
       return null;
     } finally {
       setLoading(false);
@@ -54,31 +49,12 @@ export const useNews = () => {
     return fetchLatestNews(stockId);
   }, [fetchLatestNews]);
 
-  const triggerBigNews = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.post("/news/trigger-big/");
-      // Prepend the created news to the list
-      setNews((prev) => [response.data, ...prev]);
-      return response.data;
-    } catch (err: any) {
-      const message = err.response?.data?.error || err.message || "Failed to trigger big news";
-      setError(message);
-      console.error("Error triggering big news:", err);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   return {
     news,
     loading,
     error,
     fetchLatestNews,
-    generateNews,
+    triggerAutoNews,
     refreshNews,
-    triggerBigNews,
   };
 };

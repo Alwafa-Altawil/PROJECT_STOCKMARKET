@@ -21,7 +21,11 @@ from .serializers import (
     TransactionSerializer,
 )
 from .simulator import MarketSimulator
-from .news_generator import generate_all_news, create_news_and_update_price
+from .news_generator import (
+    generate_all_news,
+    create_news_and_update_price,
+    apply_due_news_impacts,
+)
  
  
 def _to_money(value):
@@ -400,11 +404,19 @@ def market_tick(request):
     daily_drift = float(request.data.get("daily_drift", 0.0001))
     
     try:
-        updated = MarketSimulator.tick(
+        MarketSimulator.tick(
             daily_volatility=daily_volatility,
             daily_drift=daily_drift
         )
-        return Response({"updated": updated, "count": len(updated)})
+        applied_news = apply_due_news_impacts()
+        market_data = MarketSimulator.get_market_state()
+        return Response(
+            {
+                "updated": market_data["stocks"],
+                "count": len(market_data["stocks"]),
+                "applied_news_count": len(applied_news),
+            }
+        )
     except ValueError as e:
         return Response(
             {"error": str(e)},
