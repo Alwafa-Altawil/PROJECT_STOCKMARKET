@@ -11,7 +11,11 @@ export const useMarket = () => {
 
   const fetchMarketState = useCallback(async () => {
     try {
+<<<<<<< Updated upstream
       const data = await apiService.fetchMarketState();
+=======
+      const data = await apiService.getMarketState();
+>>>>>>> Stashed changes
       setStocks(data.stocks);
       return data.stocks;
     } catch (err: any) {
@@ -23,7 +27,11 @@ export const useMarket = () => {
 
   const updateMarketPrices = useCallback(async () => {
     try {
+<<<<<<< Updated upstream
       const data = await apiService.updateMarketPrices(0.015, 0.0001);
+=======
+      const data = await apiService.recordPrice(0.015, 0.0001);
+>>>>>>> Stashed changes
 
       setStocks((prevStocks) => {
         const stockMap = new Map(data.updated.map((s) => [s.id, s]));
@@ -46,7 +54,11 @@ export const useMarket = () => {
 
   const fetchPortfolio = useCallback(async () => {
     try {
+<<<<<<< Updated upstream
       const data = await apiService.fetchPortfolio();
+=======
+      const data = await apiService.getPortfolio();
+>>>>>>> Stashed changes
       setPortfolio(data);
     } catch (err: any) {
       console.error("Error fetching portfolio:", err.response?.status, err.response?.data);
@@ -54,7 +66,11 @@ export const useMarket = () => {
   }, []);
 
   const fetchForecasts = useCallback(async () => {
+<<<<<<< Updated upstream
     const data = await apiService.fetchForecasts();
+=======
+    const data = await apiService.getForecasts();
+>>>>>>> Stashed changes
     setForecasts(data);
   }, []);
 
@@ -62,7 +78,11 @@ export const useMarket = () => {
     async (stockId: number, horizonDays: number, paths: number) => {
       try {
         setLoading(true);
+<<<<<<< Updated upstream
         const forecast = await apiService.createForecast(stockId, horizonDays, paths);
+=======
+        const forecast = await apiService.createMonteCarlo(stockId, horizonDays, paths);
+>>>>>>> Stashed changes
         setForecasts((prev) => [forecast, ...prev]);
         return forecast;
       } catch (err: any) {

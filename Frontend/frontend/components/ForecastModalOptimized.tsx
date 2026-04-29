@@ -96,7 +96,11 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
         setError(null);
 
         // Fetch forecast paths
+<<<<<<< Updated upstream
         const data = await apiService.fetchForecastPaths(forecast.id);
+=======
+        const data = await apiService.getForecastPaths(forecast.id);
+>>>>>>> Stashed changes
         const paths = (data.paths as number[][]) || [];
 
         if (!isMounted) return;
