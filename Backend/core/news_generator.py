@@ -166,3 +166,54 @@ def generate_all_news() -> list:
             print(f"Error creating news for {stock.symbol}: {e}")
     
     return news_created
+
+
+def create_big_impact_news_for_random_stock() -> News:
+    """Create a single news item with large impact for a randomly chosen active stock."""
+    active = list(Stock.objects.filter(is_active=True))
+    if not active:
+        raise RuntimeError("No active stocks available")
+
+    stock = random.choice(active)
+
+    # Choose a strong sentiment (50% positive, 50% negative)
+    sentiment = News.POSITIVE if random.random() < 0.5 else News.NEGATIVE
+
+    # Use larger impact ranges for big events
+    if sentiment == News.POSITIVE:
+        impact = random.uniform(10.0, 30.0)  # +10% to +30%
+        template = random.choice(NEWS_TEMPLATES["POSITIVE"]) if NEWS_TEMPLATES.get("POSITIVE") else None
+    else:
+        impact = random.uniform(-30.0, -10.0)  # -30% to -10%
+        template = random.choice(NEWS_TEMPLATES["NEGATIVE"]) if NEWS_TEMPLATES.get("NEGATIVE") else None
+
+    quarter = random.randint(1, 4)
+    if template:
+        headline = template["headline"].format(company=stock.name, quarter=quarter)
+        description = template["description"].format(company=stock.name, quarter=quarter)
+    else:
+        headline = f"Major Event for {stock.name}"
+        description = f"A major event has occurred affecting {stock.name}."
+
+    # Create the news
+    news = News.objects.create(
+        stock=stock,
+        headline=headline,
+        description=description,
+        sentiment=sentiment,
+        impact_percentage=impact,
+    )
+
+    # Update price with big impact
+    old_price = stock.price
+    price_change = old_price * Decimal(impact) / Decimal("100")
+    new_price = old_price + price_change
+    new_price = max(new_price, Decimal("0.01"))
+    new_price = new_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    stock.price = new_price
+    stock.save()
+
+    StockPrice.objects.create(stock=stock, close=new_price)
+
+    return news

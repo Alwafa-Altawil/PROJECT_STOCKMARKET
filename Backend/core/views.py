@@ -581,3 +581,16 @@ def logout(request):
         return Response({"error": "invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
 
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def trigger_big_news(request):
+    """Trigger creation of a single big-impact news for a random active stock."""
+    try:
+        from .news_generator import create_big_impact_news_for_random_stock
+
+        news = create_big_impact_news_for_random_stock()
+        return Response(NewsSerializer(news).data, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

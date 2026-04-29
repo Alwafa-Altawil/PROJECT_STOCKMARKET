@@ -54,6 +54,24 @@ export const useNews = () => {
     return fetchLatestNews(stockId);
   }, [fetchLatestNews]);
 
+  const triggerBigNews = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post("/news/trigger-big/");
+      // Prepend the created news to the list
+      setNews((prev) => [response.data, ...prev]);
+      return response.data;
+    } catch (err: any) {
+      const message = err.response?.data?.error || err.message || "Failed to trigger big news";
+      setError(message);
+      console.error("Error triggering big news:", err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     news,
     loading,
@@ -61,5 +79,6 @@ export const useNews = () => {
     fetchLatestNews,
     generateNews,
     refreshNews,
+    triggerBigNews,
   };
 };

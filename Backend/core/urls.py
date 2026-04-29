@@ -22,6 +22,7 @@ from .views import (
     seed_stocks,
     sell_stock,
     refresh,
+    trigger_big_news,
 )
 
 router = DefaultRouter()
@@ -47,6 +48,7 @@ urlpatterns = [
     path("news/latest/", get_latest_news),
     path("news/generate/", generate_news_endpoint),
     path("news/generate-stock/", generate_news_for_stock),
+    path("news/trigger-big/", trigger_big_news),
     path("seed/stocks/", seed_stocks),
     # Routes du routeur - APRÈS les routes spécifiques
     path('', include(router.urls)),
