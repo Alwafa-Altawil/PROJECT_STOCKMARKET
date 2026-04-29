@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMarket } from "@/hooks/useMarket";
+import { useNews } from "@/hooks/useNews";
 import { AuthForm } from "@/components/AuthForm";
 import { StatCard } from "@/components/StatCard";
 import { ChartComponent } from "@/components/ChartComponent";
 import { ForecastModalOptimized } from "@/components/ForecastModalOptimized";
+import { NewsStream } from "@/components/NewsStream";
+import { NewsModal } from "@/components/NewsModal";
 import { Stock, PortfolioStatus, Forecast } from "@/types";
 
 
@@ -19,9 +22,11 @@ export default function StockApp() {
   const [forecastPaths, setForecastPaths] = useState<number>(5000);
   const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
+  const [newsModalOpen, setNewsModalOpen] = useState(false);
 
   const auth = useAuth();
   const market = useMarket();
+  const news = useNews();
 
   // Initialize auth on mount
   useEffect(() => {
@@ -157,12 +162,20 @@ export default function StockApp() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => auth.logout()}
-            className="px-4 py-4 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2 pr-4">
+            <button
+              onClick={() => setNewsModalOpen(true)}
+              className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-all hover:bg-blue-50 rounded"
+            >
+              📰 News
+            </button>
+            <button
+              onClick={() => auth.logout()}
+              className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -462,6 +475,14 @@ export default function StockApp() {
         {/* Analyse Tab */}
         {activeTab === "analyse" && (
           <div className="space-y-6 animate-in fade-in duration-500">
+            {/* News Stream */}
+            <NewsStream
+              title="📰 Market News Feed"
+              autoRefresh={true}
+              refreshInterval={60000}
+            />
+
+            {/* Monte Carlo Forecast */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
               <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
                 Créer une Prédiction (Monte Carlo)
@@ -663,6 +684,12 @@ export default function StockApp() {
           setForecastModalOpen(false);
           setSelectedForecast(null);
         }}
+      />
+
+      <NewsModal
+        isOpen={newsModalOpen}
+        onClose={() => setNewsModalOpen(false)}
+        stock={selectedStock || undefined}
       />
     </div>
   );

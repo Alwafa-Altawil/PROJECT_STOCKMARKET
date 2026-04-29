@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from .models import (
     Forecast,
+    News,
     Portfolio,
     PortfolioHolding,
     Profile,
@@ -62,6 +63,14 @@ class ForecastSerializer(serializers.ModelSerializer): #serializer pour les fore
         model = Forecast
         fields = "__all__"
 
+
+class NewsSerializer(serializers.ModelSerializer): #serializer pour les nouvelles
+    stock = StockSerializer()
+
+    class Meta:
+        model = News
+        fields = "__all__"
+
 class RegisterSerializer(serializers.ModelSerializer): #serializer pour les inscriptions des nouveaux utilisateurs
     email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True)
@@ -86,12 +95,13 @@ class RegisterSerializer(serializers.ModelSerializer): #serializer pour les insc
         return value
 
     def create(self, validated_data): #créer un nouvel utilisateur
+        # Use create_user to ensure password is hashed. Do not create Profile/Portfolio here
+        # because a post_save signal on User already handles that; creating them twice
+        # can cause integrity issues or unexpected behavior during registration.
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
         )
-        
-        Profile.objects.get_or_create(user=user)
-        Portfolio.objects.get_or_create(user=user)
+
         return user

@@ -10,9 +10,10 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
  
-from .models import Forecast, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
+from .models import Forecast, News, Portfolio, PortfolioHolding, Profile, Stock, StockPrice, Transaction
 from .serializers import (
     ForecastSerializer,
+    NewsSerializer,
     PortfolioHoldingSerializer,
     PortfolioSerializer,
     RegisterSerializer,
@@ -20,6 +21,7 @@ from .serializers import (
     TransactionSerializer,
 )
 from .simulator import MarketSimulator
+from .news_generator import generate_all_news, create_news_and_update_price
  
  
 def _to_money(value):
@@ -501,6 +503,69 @@ def register(request):
 
 login = TokenObtainPairView.as_view(permission_classes=[AllowAny])
 refresh = TokenRefreshView.as_view(permission_classes=[AllowAny])
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_latest_news(request):
+    """Get latest news, optionally filtered by stock_id."""
+    stock_id = request.query_params.get("stock_id")
+    limit = int(request.query_params.get("limit", 50))
+    
+    if stock_id:
+        try:
+            stock = Stock.objects.get(pk=stock_id, is_active=True)
+            news_list = News.objects.filter(stock=stock)[:limit]
+        except Stock.DoesNotExist:
+            return Response({"error": "stock not found"}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        news_list = News.objects.all()[:limit]
+    
+    return Response(NewsSerializer(news_list, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def generate_news_endpoint(request):
+    """Generate news for all active stocks and update their prices."""
+    try:
+        news_created = generate_all_news()
+        return Response({
+            "success": True,
+            "count": len(news_created),
+            "news": NewsSerializer(news_created, many=True).data,
+        }, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def generate_news_for_stock(request):
+    """Generate news for a specific stock."""
+    stock_id = request.data.get("stock_id")
+    
+    if not stock_id:
+        return Response(
+            {"error": "stock_id is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    
+    try:
+        stock = Stock.objects.get(pk=stock_id, is_active=True)
+    except Stock.DoesNotExist:
+        return Response({"error": "stock not found"}, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        news = create_news_and_update_price(stock)
+        return Response(NewsSerializer(news).data, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

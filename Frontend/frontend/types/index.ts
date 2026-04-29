@@ -29,6 +29,21 @@ export interface PortfolioStatus {
   updated_at: string;
 }
 
+export interface News {
+  id: number;
+  stock: {
+    id: number;
+    symbol: string;
+    name: string;
+    price: number;
+  };
+  headline: string;
+  description: string;
+  sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  impact_percentage: number;
+  created_at: string;
+}
+
 export interface MarketTickResponse {
   updated: Array<{
     id: number;
