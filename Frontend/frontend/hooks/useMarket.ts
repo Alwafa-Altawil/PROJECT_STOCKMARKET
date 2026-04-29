@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { apiService } from "@/lib/api-service";
-import { Stock, PortfolioStatus, Forecast } from "@/types";
+import { Stock, PortfolioStatus, Forecast, MarketTickResponse } from "@/types";
 
 export const useMarket = () => {
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -23,7 +23,7 @@ export const useMarket = () => {
 
   const updateMarketPrices = useCallback(async () => {
     try {
-      const data = await apiService.updateMarketPrices(0.015, 0.0001);
+      const data: MarketTickResponse = await apiService.updateMarketPrices(0.015, 0.0001);
 
       setStocks((prevStocks) => {
         const stockMap = new Map(data.updated.map((s) => [s.id, s]));
