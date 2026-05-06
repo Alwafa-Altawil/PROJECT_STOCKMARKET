@@ -1,55 +1,59 @@
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.utils import timezone
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE) #user a un seul profile
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) #parametres de la balance de chaque user
-    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) #balance de départ
-    updated_at = models.DateTimeField(auto_now=True) #date de mise à jour
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    password = models.CharField(max_length=255, default="")
+    email = models.EmailField(default="")
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) # type: ignore
+    starting_balance = models.DecimalField(max_digits=12, decimal_places=2, default=100000) # type: ignore
+    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self): #affichage du profile dans l'admin panel
+    def __str__(self):
         return f"{self.user.username}'s profile"
 
 
 class Stock(models.Model):
-    symbol = models.CharField(max_length=10, unique=True) #parametres du symbol du stock
-    name = models.CharField(max_length=120, blank=True)#parametres du name du stock
-    price = models.DecimalField(max_digits=12, decimal_places=2)#parametres du price du stock
-    is_active = models.BooleanField(default=True)#parametres de l'activité du stock
-    updated_at = models.DateTimeField(auto_now=True)#date de mise à jour
+    symbol = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=120, blank=True)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):#affichage du stock dans l'admin panel
+    def __str__(self):
         return self.symbol
 
 
 class StockPrice(models.Model):
     stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="price_history")
-    close = models.DecimalField(max_digits=12, decimal_places=2)#parametres du close du stock
-    recorded_at = models.DateTimeField(default=timezone.now, db_index=True)#date de l'enregistrement
+    close = models.DecimalField(max_digits=12, decimal_places=2)
+    recorded_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
-        ordering = ["-recorded_at"]#tri par date d'enregistrement
+        ordering = ["-recorded_at"]
 
 
 class Portfolio(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="portfolio")#user a un seul portfolio
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="portfolio")
     stocks = models.ManyToManyField(Stock, through="PortfolioHolding", related_name="portfolios")
-    updated_at = models.DateTimeField(auto_now=True)#date de mise à jour
+    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):#affichage du portfolio dans l'admin panel
+    def __str__(self):
         return f"{self.user.username}'s portfolio"
 
 
 class PortfolioHolding(models.Model):
     portfolio = models.ForeignKey(
-        Portfolio, on_delete=models.CASCADE, related_name="holdings"#portfolio a plusieurs holdings
+        Portfolio, on_delete=models.CASCADE, related_name="holdings"
     )
-    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="holdings")#stock a plusieurs holdings
-    quantity = models.PositiveIntegerField(default=0)#parametres de la quantité du stock
-    average_buy_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)#parametres du prix moyen d'achat du stock
-    updated_at = models.DateTimeField(auto_now=True)#date de mise à jour
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="holdings")
+    quantity = models.PositiveIntegerField(default=0)
+    average_buy_price = models.DecimalField(max_digits=12, decimal_places=2, default=0) # type: ignore
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("portfolio", "stock")
@@ -63,30 +67,65 @@ class Transaction(models.Model):
         (SELL, "Sell"),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)#user a plusieurs transactions
-    stock = models.ForeignKey(Stock, on_delete=models.CASCADE)#transations des stocks
-    quantity = models.PositiveIntegerField()#parametres de la quantité du stock
-    price = models.DecimalField(max_digits=12, decimal_places=2)#parametres du prix du stock
-    type = models.CharField(max_length=4, choices=TYPES)#parametres du type de transaction
-    timestamp = models.DateTimeField(default=timezone.now)#date de la transaction
-    notional = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-
-    class Meta:
-        ordering = ["-timestamp"]#tri par date de transaction
-
-
-class Forecast(models.Model): #monte carlo forecast
-    user = models.ForeignKey(User, on_delete=models.CASCADE)#forecasts des users
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
-    horizon_days = models.PositiveIntegerField(default=30)#parametres de la durée de la prévision
-    paths = models.PositiveIntegerField(default=5000)#parametres du nombre de simulations
-    drift = models.FloatField(default=0)
-    volatility = models.FloatField(default=0)#parametres de la volatilité du stock
-    percentile_5 = models.DecimalField(max_digits=12, decimal_places=2)
-    median = models.DecimalField(max_digits=12, decimal_places=2)#parametres de la médiane du stock
-    percentile_95 = models.DecimalField(max_digits=12, decimal_places=2)#parametres du 95e percentile du stock
-    probability_up = models.FloatField(default=0)
-    created_at = models.DateTimeField(default=timezone.now)#date de création
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    type = models.CharField(max_length=4, choices=TYPES)
+    timestamp = models.DateTimeField(default=timezone.now)
+    notional = models.DecimalField(max_digits=14, decimal_places=2, default=0) # type: ignore
 
     class Meta:
-        ordering = ["-created_at"]#tri par date de création
+        ordering = ["-timestamp"]
+
+
+class Forecast(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
+    horizon_days = models.PositiveIntegerField(default=30)
+    paths = models.PositiveIntegerField(default=5000)
+    drift = models.FloatField(default=0)
+    volatility = models.FloatField(default=0)
+    percentile_5 = models.DecimalField(max_digits=12, decimal_places=2)
+    median = models.DecimalField(max_digits=12, decimal_places=2)
+    percentile_95 = models.DecimalField(max_digits=12, decimal_places=2)
+    probability_up = models.FloatField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class News(models.Model):
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
+    NEUTRAL = "NEUTRAL"
+    
+    SENTIMENT_CHOICES = (
+        (POSITIVE, "Positive"),
+        (NEGATIVE, "Negative"),
+        (NEUTRAL, "Neutral"),
+    )
+    
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name="news")
+    headline = models.CharField(max_length=255)
+    description = models.TextField()
+    sentiment = models.CharField(max_length=10, choices=SENTIMENT_CHOICES)
+    impact_percentage = models.FloatField()  # Ex: 2.5 pour +2.5%, -1.5 pour -1.5%
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    ticks_until_effect = models.PositiveIntegerField(default=2)
+    is_price_applied = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name_plural = "News"
+    
+    def __str__(self):
+        return f"{self.stock.symbol}: {self.headline}"
+
+
+@receiver(post_save, sender=User)
+def create_profile_and_portfolio(sender, instance, created, **kwargs):
+    if created:
+        Profile.objects.create(user=instance)
+        Portfolio.objects.create(user=instance)

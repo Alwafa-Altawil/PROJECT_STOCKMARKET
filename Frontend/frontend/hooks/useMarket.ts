@@ -2,6 +2,12 @@ import { useState, useCallback } from "react";
 import { apiService } from "@/lib/api-service";
 import { Stock, PortfolioStatus, Forecast, MarketTickResponse } from "@/types";
 
+const getApiErrorMessage = (err: any, fallback: string) => {
+  if (err?.response?.data?.error) return err.response.data.error;
+  if (err?.message) return err.message;
+  return fallback;
+};
+
 export const useMarket = () => {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioStatus | null>(null);
@@ -15,15 +21,16 @@ export const useMarket = () => {
       setStocks(data.stocks);
       return data.stocks;
     } catch (err: any) {
-      console.error("Error fetching market state:", err);
-      setError(err.response?.data?.error || "Error loading market data");
+      const message = getApiErrorMessage(err, "Error loading market data");
+      console.error("Error fetching market state:", message);
+      setError(message);
       return [];
     }
   }, []);
 
   const updateMarketPrices = useCallback(async () => {
     try {
-      const data: MarketTickResponse = await apiService.updateMarketPrices(0.015, 0.0001);
+      const data: MarketTickResponse = await apiService.updateMarketPrices(0.0008, 0.0);
 
       setStocks((prevStocks) => {
         const stockMap = new Map(data.updated.map((s) => [s.id, s]));
@@ -40,7 +47,8 @@ export const useMarket = () => {
         });
       });
     } catch (err: any) {
-      console.error("Error updating market:", err);
+      const message = getApiErrorMessage(err, "Network error while updating market");
+      console.error("Error updating market:", message);
     }
   }, []);
 
@@ -49,7 +57,8 @@ export const useMarket = () => {
       const data = await apiService.fetchPortfolio();
       setPortfolio(data);
     } catch (err: any) {
-      console.error("Error fetching portfolio:", err.response?.status, err.response?.data);
+      const message = getApiErrorMessage(err, "Network error while fetching portfolio");
+      console.error("Error fetching portfolio:", message);
     }
   }, []);
 

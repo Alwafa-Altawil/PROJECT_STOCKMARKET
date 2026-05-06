@@ -3,11 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMarket } from "@/hooks/useMarket";
+import { useNews } from "@/hooks/useNews";
 import { AuthForm } from "@/components/AuthForm";
 import { StatCard } from "@/components/StatCard";
 import { ChartComponent } from "@/components/ChartComponent";
 import { ForecastModalOptimized } from "@/components/ForecastModalOptimized";
-import { Stock, PortfolioStatus, Forecast } from "@/types";
+import { NewsModal } from "@/components/NewsModal";
+import { Stock, Forecast, News } from "@/types";
 
 
 export default function StockApp() {
@@ -19,9 +21,12 @@ export default function StockApp() {
   const [forecastPaths, setForecastPaths] = useState<number>(5000);
   const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
+  const [newsModalOpen, setNewsModalOpen] = useState(false);
+  const [newsNotification, setNewsNotification] = useState<News | null>(null);
 
   const auth = useAuth();
   const market = useMarket();
+  const news = useNews();
 
   // Initialize auth on mount
   useEffect(() => {
@@ -53,7 +58,7 @@ export default function StockApp() {
       market.fetchPortfolio();
       market.fetchForecasts();
 
-      const marketInterval = setInterval(() => market.updateMarketPrices(), 1500);
+      const marketInterval = setInterval(() => market.updateMarketPrices(), 15000);
       const portfolioInterval = setInterval(() => market.fetchPortfolio(), 5000);
 
       return () => {
@@ -62,6 +67,25 @@ export default function StockApp() {
       };
     }
   }, [auth.isAuthenticated]);
+
+  // Generate one strong market news automatically every 60 seconds and notify user.
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+
+    const newsInterval = setInterval(async () => {
+      try {
+        const createdNews = await news.triggerAutoNews();
+        if (createdNews) {
+          setNewsNotification(createdNews);
+          setTimeout(() => setNewsNotification(null), 5000);
+        }
+      } catch (err) {
+        console.error("Error auto-generating market news:", err);
+      }
+    }, 60000);
+
+    return () => clearInterval(newsInterval);
+  }, [auth.isAuthenticated, news.triggerAutoNews]);
 
   // Handle buy
   const handleBuy = async () => {
@@ -139,6 +163,14 @@ export default function StockApp() {
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
+      {newsNotification && (
+        <div className="fixed top-4 right-4 z-50 bg-white border border-zinc-200 shadow-lg rounded-lg p-4 max-w-sm">
+          <p className="text-xs font-bold uppercase text-blue-600 mb-1">Breaking news</p>
+          <p className="text-sm font-semibold text-zinc-900">{newsNotification.stock.symbol}</p>
+          <p className="text-sm text-zinc-700">{newsNotification.headline}</p>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="bg-white border-b border-zinc-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
@@ -157,12 +189,20 @@ export default function StockApp() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => auth.logout()}
-            className="px-4 py-4 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2 pr-4">
+            <button
+              onClick={() => setNewsModalOpen(true)}
+              className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-all hover:bg-blue-50 rounded"
+            >
+              News
+            </button>
+            <button
+              onClick={() => auth.logout()}
+              className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -462,6 +502,7 @@ export default function StockApp() {
         {/* Analyse Tab */}
         {activeTab === "analyse" && (
           <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Monte Carlo Forecast */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
               <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
                 Créer une Prédiction (Monte Carlo)
@@ -663,6 +704,12 @@ export default function StockApp() {
           setForecastModalOpen(false);
           setSelectedForecast(null);
         }}
+      />
+
+      <NewsModal
+        isOpen={newsModalOpen}
+        onClose={() => setNewsModalOpen(false)}
+        stocks={market.stocks}
       />
     </div>
   );
