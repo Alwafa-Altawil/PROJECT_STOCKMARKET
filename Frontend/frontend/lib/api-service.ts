@@ -86,16 +86,26 @@ export const apiService = {
   },
 
   // Market data
-  async fetchMarketState() {
-    const response = await axiosInstance.get("/market/state/");
+  async fetchMarketState(source: "INTERNAL" | "ALPHA_VANTAGE" = "INTERNAL") {
+    const response = await axiosInstance.get("/market/state/", { params: { source } });
     return response.data;
   },
 
-  async updateMarketPrices(dailyVolatility: number, dailyDrift: number) {
+  async updateMarketPrices(
+    dailyVolatility: number,
+    dailyDrift: number,
+    source: "INTERNAL" | "ALPHA_VANTAGE" = "INTERNAL"
+  ) {
     const response = await axiosInstance.post("/market/tick/", {
       daily_volatility: dailyVolatility,
       daily_drift: dailyDrift,
+      source,
     });
+    return response.data;
+  },
+
+  async seedAlphaVantageStocks() {
+    const response = await axiosInstance.post("/seed/stocks/alpha-vantage/");
     return response.data;
   },
 

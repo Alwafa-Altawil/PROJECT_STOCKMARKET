@@ -1,8 +1,10 @@
 import math
 import random
+import os
 from decimal import Decimal, ROUND_HALF_UP
  
 from django.db import transaction as db_transaction
+from django.conf import settings
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -402,18 +404,23 @@ def record_price(request):
 def market_tick(request):
     daily_volatility = float(request.data.get("daily_volatility", 0.015))
     daily_drift = float(request.data.get("daily_drift", 0.0001))
+    source = request.data.get("source", Stock.SOURCE_INTERNAL)
     
     try:
-        MarketSimulator.tick(
-            daily_volatility=daily_volatility,
-            daily_drift=daily_drift
-        )
+        if source == Stock.SOURCE_ALPHA_VANTAGE:
+            updated = MarketSimulator.refresh_alpha_vantage_prices()
+        else:
+            updated = MarketSimulator.tick(
+                daily_volatility=daily_volatility,
+                daily_drift=daily_drift,
+                source=source,
+            )
         applied_news = apply_due_news_impacts()
-        market_data = MarketSimulator.get_market_state()
         return Response(
             {
-                "updated": market_data["stocks"],
-                "count": len(market_data["stocks"]),
+                "source": source,
+                "updated": updated,
+                "count": len(updated),
                 "applied_news_count": len(applied_news),
             }
         )
@@ -428,7 +435,8 @@ def market_tick(request):
 @permission_classes([AllowAny])
 def market_state(request):
     """Get current market state with all active stocks, prices, and price history."""
-    market_data = MarketSimulator.get_market_state()
+    source = request.query_params.get("source", Stock.SOURCE_INTERNAL)
+    market_data = MarketSimulator.get_market_state(source=source)
     return Response(market_data)
 
 
@@ -492,14 +500,44 @@ def seed_stocks(request):
     for row in defaults:
         stock, was_created = Stock.objects.get_or_create(
             symbol=row["symbol"],
-            defaults={"name": row["name"], "price": row["price"], "is_active": True},
+            defaults={
+                "name": row["name"],
+                "price": row["price"],
+                "source": Stock.SOURCE_INTERNAL,
+                "is_active": True,
+            },
         )
+        if stock.source != Stock.SOURCE_INTERNAL:
+            stock.source = Stock.SOURCE_INTERNAL
+            stock.save(update_fields=["source", "updated_at"])
         if was_created:
             created.append(stock.symbol)
         StockPrice.objects.get_or_create(stock=stock, close=stock.price)
  
     return Response({"created": created, "count": len(created)})
 
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def seed_stocks_from_alpha_vantage(request):
+    """Seed stocks using Alpha Vantage API."""
+    api_key = (
+        getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
+        or os.getenv("ALPHA_VANTAGE_API_KEY")
+        or os.getenv("ALPHA_VANTAGE_KEY")
+    )
+    
+    try:
+        result = MarketSimulator.seed_stocks_from_alpha_vantage(api_key)
+        status_code = status.HTTP_200_OK if result["updated"] else status.HTTP_201_CREATED
+        if result["rate_limited"]:
+            status_code = status.HTTP_207_MULTI_STATUS
+        return Response(result, status=status_code)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)    
+
+        
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):

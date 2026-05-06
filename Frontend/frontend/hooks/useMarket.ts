@@ -9,15 +9,16 @@ const getApiErrorMessage = (err: any, fallback: string) => {
 };
 
 export const useMarket = () => {
+  const [marketSource, setMarketSource] = useState<"INTERNAL" | "ALPHA_VANTAGE">("INTERNAL");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioStatus | null>(null);
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMarketState = useCallback(async () => {
+  const fetchMarketState = useCallback(async (source = marketSource) => {
     try {
-      const data = await apiService.fetchMarketState();
+      const data = await apiService.fetchMarketState(source);
       setStocks(data.stocks);
       return data.stocks;
     } catch (err: any) {
@@ -26,11 +27,11 @@ export const useMarket = () => {
       setError(message);
       return [];
     }
-  }, []);
+  }, [marketSource]);
 
-  const updateMarketPrices = useCallback(async () => {
+  const updateMarketPrices = useCallback(async (source = marketSource) => {
     try {
-      const data: MarketTickResponse = await apiService.updateMarketPrices(0.0008, 0.0);
+      const data: MarketTickResponse = await apiService.updateMarketPrices(0.0008, 0.0, source);
 
       setStocks((prevStocks) => {
         const stockMap = new Map(data.updated.map((s) => [s.id, s]));
@@ -50,7 +51,33 @@ export const useMarket = () => {
       const message = getApiErrorMessage(err, "Network error while updating market");
       console.error("Error updating market:", message);
     }
-  }, []);
+  }, [marketSource]);
+
+  const switchMarketSource = useCallback(
+    async (source: "INTERNAL" | "ALPHA_VANTAGE") => {
+      try {
+        setLoading(true);
+        setError(null);
+        if (source === "ALPHA_VANTAGE") {
+          await apiService.seedAlphaVantageStocks();
+        }
+        setMarketSource(source);
+        const data = await apiService.fetchMarketState(source);
+        setStocks(data.stocks);
+        return data.stocks;
+      } catch (err: any) {
+        const message = getApiErrorMessage(
+          err,
+          "Error switching market source"
+        );
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -123,6 +150,8 @@ export const useMarket = () => {
 
   return {
     stocks,
+    marketSource,
+    switchMarketSource,
     setStocks,
     portfolio,
     setPortfolio,

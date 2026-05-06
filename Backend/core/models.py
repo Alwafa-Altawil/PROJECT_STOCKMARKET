@@ -18,9 +18,19 @@ class Profile(models.Model):
 
 
 class Stock(models.Model):
+    SOURCE_INTERNAL = "INTERNAL"
+    SOURCE_ALPHA_VANTAGE = "ALPHA_VANTAGE"
+    SOURCE_CHOICES = (
+        (SOURCE_INTERNAL, "Internal"),
+        (SOURCE_ALPHA_VANTAGE, "Alpha Vantage"),
+    )
+
     symbol = models.CharField(max_length=10, unique=True)
     name = models.CharField(max_length=120, blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2)
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default=SOURCE_INTERNAL, db_index=True
+    )
     is_active = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
 

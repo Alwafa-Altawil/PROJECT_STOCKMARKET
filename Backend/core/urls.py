@@ -20,6 +20,7 @@ from .views import (
     record_price,
     register,
     seed_stocks,
+    seed_stocks_from_alpha_vantage,
     sell_stock,
     refresh,
     trigger_big_news,
@@ -50,6 +51,7 @@ urlpatterns = [
     path("news/generate-stock/", generate_news_for_stock),
     path("news/trigger-big/", trigger_big_news),
     path("seed/stocks/", seed_stocks),
+    path("seed/stocks/alpha-vantage/", seed_stocks_from_alpha_vantage),
     # Routes du routeur - APRÈS les routes spécifiques
     path('', include(router.urls)),
 ]

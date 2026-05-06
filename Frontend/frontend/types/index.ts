@@ -3,6 +3,7 @@ export interface Stock {
   symbol: string;
   name: string;
   price: number;
+  source: "INTERNAL" | "ALPHA_VANTAGE";
   history: number[];
   updated_at: string;
 }
@@ -45,11 +46,13 @@ export interface News {
 }
 
 export interface MarketTickResponse {
+  source: "INTERNAL" | "ALPHA_VANTAGE";
   updated: Array<{
     id: number;
     symbol: string;
     name: string;
     price: number;
+    source?: "INTERNAL" | "ALPHA_VANTAGE";
     history: number[];
   }>;
   count: number;

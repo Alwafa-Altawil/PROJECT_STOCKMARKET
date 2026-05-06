@@ -35,12 +35,12 @@ export default function StockApp() {
 
   // Load market data (public)
   useEffect(() => {
-    market.fetchMarketState().then((stocks) => {
+    market.fetchMarketState(market.marketSource).then((stocks) => {
       if (stocks.length > 0) {
         setSelectedStock(stocks[0]);
       }
     });
-  }, []);
+  }, [market.marketSource]);
 
   // Keep selectedStock in sync with market updates (real-time chart updates)
   useEffect(() => {
@@ -58,7 +58,10 @@ export default function StockApp() {
       market.fetchPortfolio();
       market.fetchForecasts();
 
-      const marketInterval = setInterval(() => market.updateMarketPrices(), 15000);
+      const marketInterval = setInterval(
+        () => market.updateMarketPrices(market.marketSource),
+        15000
+      );
       const portfolioInterval = setInterval(() => market.fetchPortfolio(), 5000);
 
       return () => {
@@ -66,7 +69,7 @@ export default function StockApp() {
         clearInterval(portfolioInterval);
       };
     }
-  }, [auth.isAuthenticated]);
+  }, [auth.isAuthenticated, market.marketSource]);
 
   // Generate one strong market news automatically every 60 seconds and notify user.
   useEffect(() => {
@@ -190,6 +193,40 @@ export default function StockApp() {
             ))}
           </div>
           <div className="flex items-center gap-2 pr-4">
+            <div className="flex items-center border border-zinc-200 rounded-lg p-1 bg-zinc-50">
+              <button
+                onClick={async () => {
+                  try {
+                    await market.switchMarketSource("INTERNAL");
+                  } catch (_err) {
+                    // Error is already surfaced through market.error state.
+                  }
+                }}
+                className={`px-3 py-1 text-xs font-bold rounded ${
+                  market.marketSource === "INTERNAL"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 hover:text-zinc-800"
+                }`}
+              >
+                Local
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await market.switchMarketSource("ALPHA_VANTAGE");
+                  } catch (_err) {
+                    // Error is already surfaced through market.error state.
+                  }
+                }}
+                className={`px-3 py-1 text-xs font-bold rounded ${
+                  market.marketSource === "ALPHA_VANTAGE"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-600 hover:text-zinc-800"
+                }`}
+              >
+                Alpha
+              </button>
+            </div>
             <button
               onClick={() => setNewsModalOpen(true)}
               className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-all hover:bg-blue-50 rounded"
