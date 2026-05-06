@@ -23,10 +23,36 @@ export default function StockApp() {
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [newsModalOpen, setNewsModalOpen] = useState(false);
   const [newsNotification, setNewsNotification] = useState<News | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   const auth = useAuth();
   const market = useMarket();
   const news = useNews();
+
+  // Initialize theme
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") {
+      setIsDarkMode(true);
+      document.documentElement.classList.add("dark");
+    } else {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  // Toggle theme
+  const toggleTheme = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    if (newDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
 
   // Initialize auth on mount
   useEffect(() => {
@@ -162,18 +188,41 @@ export default function StockApp() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
+    <div className={`min-h-screen font-sans transition-colors duration-300 ${
+      isDarkMode
+        ? "bg-zinc-900 text-zinc-100"
+        : "bg-zinc-50 text-zinc-900"
+    }`}>
       {newsNotification && (
-        <div className="fixed top-4 right-4 z-50 bg-white border border-zinc-200 shadow-lg rounded-lg p-4 max-w-sm">
+        <div className={`fixed top-4 right-4 z-50 shadow-lg rounded-lg p-4 max-w-sm transition-colors duration-300 ${
+          isDarkMode
+            ? "bg-zinc-800 border border-zinc-700"
+            : "bg-white border border-zinc-200"
+        }`}>
           <p className="text-xs font-bold uppercase text-blue-600 mb-1">Breaking news</p>
-          <p className="text-sm font-semibold text-zinc-900">{newsNotification.stock.symbol}</p>
-          <p className="text-sm text-zinc-700">{newsNotification.headline}</p>
+          <p className={`text-sm font-semibold ${isDarkMode ? "text-zinc-100" : "text-zinc-900"}`}>{newsNotification.stock.symbol}</p>
+          <p className={`text-sm ${isDarkMode ? "text-zinc-300" : "text-zinc-700"}`}>{newsNotification.headline}</p>
         </div>
       )}
 
       {/* Navigation */}
-      <nav className="bg-white border-b border-zinc-200 sticky top-0 z-10">
+      <nav className={`sticky top-0 z-10 transition-colors duration-300 ${
+        isDarkMode
+          ? "bg-zinc-800 border-b border-zinc-700"
+          : "bg-white border-b border-zinc-200"
+      }`}>
         <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <button
+            onClick={toggleTheme}
+            className={`py-3 px-4 text-sm font-bold uppercase tracking-widest transition-all rounded mr-2 ${
+              isDarkMode
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-amber-400 text-zinc-900 hover:bg-amber-500"
+            }`}
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? "🌙" : "☀️"}
+          </button>
           <div className="flex justify-around flex-1">
             {["portfolio", "watchlist", "analyse"].map((tab: string) => (
               <button
@@ -182,6 +231,8 @@ export default function StockApp() {
                 className={`py-4 px-2 text-sm font-bold uppercase tracking-widest transition-all border-b-2 ${
                   activeTab === tab
                     ? "border-blue-600 text-blue-600"
+                    : isDarkMode
+                    ? "border-transparent text-zinc-400 hover:text-zinc-200"
                     : "border-transparent text-zinc-400 hover:text-zinc-600"
                 }`}
               >
@@ -209,12 +260,20 @@ export default function StockApp() {
       <main className="max-w-4xl mx-auto p-6">
         {/* Notifications */}
         {successMessage && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+          <div className={`mb-4 p-4 border rounded-lg transition-colors duration-300 ${
+            isDarkMode
+              ? "bg-green-900 border-green-700 text-green-200"
+              : "bg-green-50 border-green-200 text-green-700"
+          }`}>
             {successMessage}
           </div>
         )}
         {market.error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className={`mb-4 p-4 border rounded-lg transition-colors duration-300 ${
+            isDarkMode
+              ? "bg-red-900 border-red-700 text-red-200"
+              : "bg-red-50 border-red-200 text-red-700"
+          }`}>
             {market.error}
           </div>
         )}
