@@ -1,9 +1,5 @@
 import { useState, useCallback } from "react";
-<<<<<<< Updated upstream
 import { apiService } from "@/lib/api-service";
-=======
-import { apiService } from "@lib/api-service";
->>>>>>> Stashed changes
 import { api } from "@/lib/api";
 
 export const useAuth = () => {
