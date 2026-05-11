@@ -26,6 +26,8 @@ from .news_generator import (
     create_news_and_update_price,
     apply_due_news_impacts,
 )
+
+import numpy as np
  
  
 def _to_money(value):
@@ -33,46 +35,65 @@ def _to_money(value):
  
  
 def _log_returns_from_prices(prices):
-    returns = []
-    for i in range(1, len(prices)):
-        previous_price = float(prices[i - 1])
-        current_price = float(prices[i])
-        if previous_price > 0 and current_price > 0:
-            returns.append(math.log(current_price / previous_price))
-    return returns
+    """Calculate log returns using NumPy vectorization."""
+    prices_array = np.array([float(p) for p in prices])
+    # Filter out zero or negative prices
+    valid_mask = prices_array > 0
+    if not np.all(valid_mask):
+        prices_array = prices_array[valid_mask]
+    
+    if len(prices_array) < 2:
+        return []
+    
+    # Vectorized log returns calculation
+    returns = np.log(prices_array[1:] / prices_array[:-1])
+    return returns.tolist()
  
  
 def _monte_carlo_paths(start_price, drift, volatility, horizon_days, paths):
-    results = []
+    """Generate Monte Carlo final prices using NumPy vectorization."""
     dt = 1 / 252
     drift_term = (drift - 0.5 * volatility * volatility) * dt
-    sigma_term = volatility * math.sqrt(dt)
- 
-    for _ in range(paths):
-        price = float(start_price)
-        for _ in range(horizon_days):
-            shock = random.gauss(0, 1)
-            price *= math.exp(drift_term + sigma_term * shock)
-        results.append(price)
-    return results
+    sigma_term = volatility * np.sqrt(dt)
+    
+    # Generate all shocks at once: (paths, horizon_days)
+    shocks = np.random.standard_normal((paths, horizon_days))
+    
+    # Calculate cumulative price movements
+    # exponent shape: (paths, horizon_days)
+    exponents = drift_term + sigma_term * shocks
+    movements = np.exp(exponents)
+    
+    # Cumulative product along time axis gives price paths
+    # Start with initial price and multiply by movements
+    price_multipliers = np.cumprod(movements, axis=1)
+    final_prices = float(start_price) * price_multipliers[:, -1]
+    
+    return final_prices.tolist()
 
 
 def _monte_carlo_paths_full(start_price, drift, volatility, horizon_days, paths):
-    """Generate full Monte Carlo paths with all intermediate prices."""
-    all_paths = []
+    """Generate full Monte Carlo paths with all intermediate prices using NumPy."""
     dt = 1 / 252
     drift_term = (drift - 0.5 * volatility * volatility) * dt
-    sigma_term = volatility * math.sqrt(dt)
-
-    for _ in range(paths):
-        price = float(start_price)
-        path = [price]
-        for _ in range(horizon_days):
-            shock = random.gauss(0, 1)
-            price *= math.exp(drift_term + sigma_term * shock)
-            path.append(price)
-        all_paths.append(path)
-    return all_paths
+    sigma_term = volatility * np.sqrt(dt)
+    
+    # Generate all shocks: (paths, horizon_days)
+    shocks = np.random.standard_normal((paths, horizon_days))
+    
+    # Calculate movements
+    exponents = drift_term + sigma_term * shocks
+    movements = np.exp(exponents)
+    
+    # Calculate cumulative product to get price ratios
+    price_multipliers = np.cumprod(movements, axis=1)
+    
+    # Add initial price column (all prices start at start_price)
+    initial_prices = np.full((paths, 1), float(start_price))
+    price_paths = np.hstack([initial_prices, float(start_price) * price_multipliers])
+    
+    # Convert to list of paths
+    return price_paths.tolist()
  
  
 class StockViewSet(viewsets.ModelViewSet):
@@ -481,11 +502,41 @@ def portfolio_status(request):
 def seed_stocks(request):
     """Initialize default stocks in the database."""
     defaults = [
+        # Technologie
         {"symbol": "AAPL", "name": "Apple Inc.", "price": Decimal("180.00")},
         {"symbol": "MSFT", "name": "Microsoft Corp.", "price": Decimal("420.00")},
         {"symbol": "GOOGL", "name": "Alphabet Inc.", "price": Decimal("170.00")},
         {"symbol": "TSLA", "name": "Tesla Inc.", "price": Decimal("230.00")},
         {"symbol": "AMZN", "name": "Amazon.com Inc.", "price": Decimal("185.00")},
+        {"symbol": "META", "name": "Meta Platforms Inc.", "price": Decimal("325.00")},
+        {"symbol": "NVDA", "name": "NVIDIA Corporation", "price": Decimal("880.00")},
+        {"symbol": "AVGO", "name": "Broadcom Inc.", "price": Decimal("850.00")},
+        {"symbol": "AMD", "name": "Advanced Micro Devices Inc.", "price": Decimal("185.00")},
+        {"symbol": "INTC", "name": "Intel Corporation", "price": Decimal("35.00")},
+        # E-Commerce & Détail
+        {"symbol": "WMT", "name": "Walmart Inc.", "price": Decimal("92.00")},
+        {"symbol": "COST", "name": "Costco Wholesale Corporation", "price": Decimal("905.00")},
+        # Secteur Financier
+        {"symbol": "JPM", "name": "JPMorgan Chase & Co.", "price": Decimal("195.00")},
+        {"symbol": "BAC", "name": "Bank of America Corp.", "price": Decimal("35.00")},
+        {"symbol": "WFC", "name": "Wells Fargo & Company", "price": Decimal("63.00")},
+        {"symbol": "GS", "name": "Goldman Sachs Group Inc.", "price": Decimal("415.00")},
+        # Santé & Pharma
+        {"symbol": "JNJ", "name": "Johnson & Johnson", "price": Decimal("158.00")},
+        {"symbol": "UNH", "name": "UnitedHealth Group Inc.", "price": Decimal("532.00")},
+        {"symbol": "PFE", "name": "Pfizer Inc.", "price": Decimal("28.00")},
+        # Énergie
+        {"symbol": "XOM", "name": "Exxon Mobil Corporation", "price": Decimal("112.00")},
+        {"symbol": "CVX", "name": "Chevron Corporation", "price": Decimal("160.00")},
+        # Industrie & Infrastructure
+        {"symbol": "BA", "name": "The Boeing Company", "price": Decimal("182.00")},
+        {"symbol": "GE", "name": "General Electric Company", "price": Decimal("128.00")},
+        # Biens de Consommation
+        {"symbol": "KO", "name": "The Coca-Cola Company", "price": Decimal("62.00")},
+        {"symbol": "PEP", "name": "PepsiCo Inc.", "price": Decimal("188.00")},
+        {"symbol": "MCD", "name": "McDonald's Corporation", "price": Decimal("298.00")},
+        {"symbol": "NKE", "name": "Nike Inc.", "price": Decimal("75.00")},
+        {"symbol": "SBUX", "name": "Starbucks Corporation", "price": Decimal("98.00")},
     ]
  
     created = []

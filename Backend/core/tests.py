@@ -75,10 +75,9 @@ class TradingFlowTests(APITestCase):
         news_count = News.objects.filter(stock=self.stock).count()
         self.assertGreater(news_count, 0)
         
-        # Refresh stock to get updated price
+        
         self.stock.refresh_from_db()
-        # Price should have changed (unless by extreme chance it stayed the same)
-        # We'll just verify the news exists for this test
+        
         self.assertTrue(News.objects.filter(stock=self.stock).exists())
 
     def test_get_latest_news_endpoint(self):
@@ -98,7 +97,6 @@ class TradingFlowTests(APITestCase):
         self.assertGreater(len(response.data), 0)  # type: ignore
 
     def test_generate_news_for_specific_stock(self):
-        """Test generating news for a specific stock."""
         response = self.client.post(
             "/api/core/news/generate-stock/",
             {"stock_id": self.stock.pk},
