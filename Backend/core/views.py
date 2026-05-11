@@ -366,20 +366,32 @@ def get_forecasts(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_forecast_paths(request, forecast_id):
-    """Get Monte Carlo simulation paths for a forecast (sampled for performance)."""
+    """Get Monte Carlo simulation paths for a forecast with aggressive compression."""
     try:
         forecast = Forecast.objects.get(id=forecast_id, user=request.user)
     except Forecast.DoesNotExist:
         return Response({"error": "forecast not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # Only generate 150 sample paths instead of all paths
+    # Only generate 100 sample paths for display (aggressive downsampling)
     sample_paths = _monte_carlo_paths_full(
         forecast.stock.price,
         forecast.drift,
         forecast.volatility,
         forecast.horizon_days,
-        150  # Only generate 150 paths for display
+        100  # Reduced from 150 to 100 for faster rendering
     )
+    
+    # Compress paths: downsample each path to max 50 points
+    max_points = 50
+    compressed_paths = []
+    for path in sample_paths:
+        if len(path) > max_points:
+            # Keep first, last, and evenly spaced points
+            step = len(path) // max_points
+            compressed = [path[0]] + [path[i] for i in range(step, len(path), step)] + [path[-1]]
+        else:
+            compressed = path
+        compressed_paths.append(compressed)
 
     # Also generate final prices for accurate percentile calculation
     final_prices_sample = sorted([path[-1] for path in sample_paths])
@@ -389,7 +401,7 @@ def get_forecast_paths(request, forecast_id):
 
     return Response({
         "forecast": ForecastSerializer(forecast).data,
-        "paths": sample_paths,
+        "paths": compressed_paths,
         "percentile_5": float(p05),
         "median": float(p50),
         "percentile_95": float(p95),
