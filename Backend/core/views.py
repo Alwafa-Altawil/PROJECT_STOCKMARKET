@@ -29,7 +29,7 @@ from .news_generator import (
 
 import numpy as np
  
- 
+ # Arrondi les valeurs monétaires à 2 décimales avec arrondi standard (0.005 devient 0.01)
 def _to_money(value):
     return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
  
@@ -37,7 +37,7 @@ def _to_money(value):
 def _log_returns_from_prices(prices):
     """Calculate log returns using NumPy vectorization."""
     prices_array = np.array([float(p) for p in prices])
-    # Filter out zero or negative prices
+    # Filtre les prix non valides (<= 0) pour éviter les erreurs de log
     valid_mask = prices_array > 0
     if not np.all(valid_mask):
         prices_array = prices_array[valid_mask]
@@ -45,54 +45,43 @@ def _log_returns_from_prices(prices):
     if len(prices_array) < 2:
         return []
     
-    # Vectorized log returns calculation
     returns = np.log(prices_array[1:] / prices_array[:-1])
     return returns.tolist()
  
- 
+ # Génère les prix finaux de Monte Carlo en utilisant la vectorisation NumPy pour une performance maximale.
 def _monte_carlo_paths(start_price, drift, volatility, horizon_days, paths):
     """Generate Monte Carlo final prices using NumPy vectorization."""
     dt = 1 / 252
     drift_term = (drift - 0.5 * volatility * volatility) * dt
     sigma_term = volatility * np.sqrt(dt)
     
-    # Generate all shocks at once: (paths, horizon_days)
     shocks = np.random.standard_normal((paths, horizon_days))
     
-    # Calculate cumulative price movements
-    # exponent shape: (paths, horizon_days)
     exponents = drift_term + sigma_term * shocks
     movements = np.exp(exponents)
     
-    # Cumulative product along time axis gives price paths
-    # Start with initial price and multiply by movements
     price_multipliers = np.cumprod(movements, axis=1)
     final_prices = float(start_price) * price_multipliers[:, -1]
     
     return final_prices.tolist()
 
-
+# Génère les chemins complets de Monte Carlo avec tous les prix intermédiaires en utilisant NumPy.
 def _monte_carlo_paths_full(start_price, drift, volatility, horizon_days, paths):
     """Generate full Monte Carlo paths with all intermediate prices using NumPy."""
     dt = 1 / 252
     drift_term = (drift - 0.5 * volatility * volatility) * dt
     sigma_term = volatility * np.sqrt(dt)
     
-    # Generate all shocks: (paths, horizon_days)
     shocks = np.random.standard_normal((paths, horizon_days))
-    
-    # Calculate movements
+     
     exponents = drift_term + sigma_term * shocks
     movements = np.exp(exponents)
     
-    # Calculate cumulative product to get price ratios
     price_multipliers = np.cumprod(movements, axis=1)
     
-    # Add initial price column (all prices start at start_price)
     initial_prices = np.full((paths, 1), float(start_price))
     price_paths = np.hstack([initial_prices, float(start_price) * price_multipliers])
     
-    # Convert to list of paths
     return price_paths.tolist()
  
  
@@ -109,7 +98,8 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     def get_queryset(self): # type: ignore
         return Portfolio.objects.filter(user=self.request.user).prefetch_related("holdings__stock")
  
- 
+   # Ce endpoint retourne le résumé du portefeuille de l'utilisateur, y compris le solde,
+   #  la valeur marchande des positions, l'équité totale et les détails de chaque position.
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_portfolio(request):
@@ -141,7 +131,9 @@ def get_transactions(request):
     rows = Transaction.objects.filter(user=user).select_related("stock")[:100]
     return Response(TransactionSerializer(rows, many=True).data)
  
- 
+ # Ce endpoint permet à l'utilisateur d'acheter des actions. Il vérifie que l'utilisateur a suffisamment de solde,
+ #  met à jour le portefeuille et les transactions, et retourne les détails de la transaction ainsi que
+ #  le résumé du portefeuille mis à jour.
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def buy_stock(request):
@@ -189,7 +181,7 @@ def buy_stock(request):
             notional=cost,
         )
  
-    # Calculate market value
+    # Calcule la valeur marchande après l'achat
     all_holdings = PortfolioHolding.objects.filter(
         portfolio=portfolio, quantity__gt=0
     ).select_related("stock")
@@ -214,7 +206,7 @@ def buy_stock(request):
         },
     })
  
- 
+ # Ce endpoint permet à l'utilisateur de vendre des actions. Il vérifie que l'utilisateur a suffisamment de titres à vendre,
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def sell_stock(request):
@@ -264,7 +256,7 @@ def sell_stock(request):
             notional=proceeds,
         )
  
-    # Calculate market value
+    
     all_holdings = PortfolioHolding.objects.filter(
         portfolio=portfolio, quantity__gt=0
     ).select_related("stock")
@@ -289,7 +281,10 @@ def sell_stock(request):
         },
     })
  
- 
+ # Ce endpoint crée une prévision de Monte Carlo pour une action donnée sur un horizon de temps spécifié.
+ #  Il calcule les rendements historiques, la dérive, la volatilité, et
+ #  génère des chemins de prix simulés pour estimer les percentiles et la probabilité que le
+ #  prix soit supérieur au prix actuel à l'horizon.
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_monte_carlo_forecast(request):
@@ -362,7 +357,8 @@ def get_forecasts(request):
     rows = Forecast.objects.filter(user=user).select_related("stock")[:50]
     return Response(ForecastSerializer(rows, many=True).data)
 
-
+# Ce endpoint retourne les chemins de prix simulés pour une prévision donnée, 
+# avec une compression agressive pour limiter le nombre de points retournés.
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_forecast_paths(request, forecast_id):
@@ -372,28 +368,26 @@ def get_forecast_paths(request, forecast_id):
     except Forecast.DoesNotExist:
         return Response({"error": "forecast not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # Only generate 100 sample paths for display (aggressive downsampling)
+    
     sample_paths = _monte_carlo_paths_full(
         forecast.stock.price,
         forecast.drift,
         forecast.volatility,
         forecast.horizon_days,
-        100  # Reduced from 150 to 100 for faster rendering
+        100  
     )
     
-    # Compress paths: downsample each path to max 50 points
     max_points = 50
     compressed_paths = []
     for path in sample_paths:
         if len(path) > max_points:
-            # Keep first, last, and evenly spaced points
             step = len(path) // max_points
             compressed = [path[0]] + [path[i] for i in range(step, len(path), step)] + [path[-1]]
         else:
             compressed = path
         compressed_paths.append(compressed)
 
-    # Also generate final prices for accurate percentile calculation
+    
     final_prices_sample = sorted([path[-1] for path in sample_paths])
     p05 = final_prices_sample[int(len(final_prices_sample) * 0.05)]
     p50 = final_prices_sample[int(len(final_prices_sample) * 0.50)]
@@ -406,7 +400,7 @@ def get_forecast_paths(request, forecast_id):
         "median": float(p50),
         "percentile_95": float(p95),
     })
- 
+ # Ce endpoint permet d'enregistrer manuellement un prix pour une action donnée. Il vérifie que l'action existe et est active,
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def record_price(request):
@@ -429,7 +423,8 @@ def record_price(request):
     StockPrice.objects.create(stock=stock, close=value)
     return Response({"success": True, "price": value})
  
- 
+ # Ce endpoint fait avancer le marché d'un jour en appliquant la simulation de mouvement des prix pour 
+ # toutes les actions actives.
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def market_tick(request):
@@ -464,7 +459,7 @@ def market_state(request):
     market_data = MarketSimulator.get_market_state()
     return Response(market_data)
 
-
+# Ce endpoint retourne le résumé du portefeuille de l'utilisateur, y compris le solde,
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def portfolio_status(request):
@@ -508,7 +503,7 @@ def portfolio_status(request):
         "updated_at": portfolio.updated_at.isoformat(),
     })
 
-
+ # Ce endpoint initialise les actions par défaut dans la base de données avec des prix de départ réalistes.
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def seed_stocks(request):
@@ -562,7 +557,8 @@ def seed_stocks(request):
         StockPrice.objects.get_or_create(stock=stock, close=stock.price)
  
     return Response({"created": created, "count": len(created)})
-
+# Ce endpoint permet à un nouvel utilisateur de s'inscrire en fournissant un nom d'utilisateur, un email et un mot de passe.
+#  Il utilise un sérialiseur pour valider les données et créer l'utilisateur, puis retourne les détails
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
@@ -578,7 +574,8 @@ def register(request):
 
 login = TokenObtainPairView.as_view(permission_classes=[AllowAny])
 refresh = TokenRefreshView.as_view(permission_classes=[AllowAny])
-
+# Ce endpoint retourne les dernières nouvelles, avec la possibilité de filtrer par stock_id et de
+#  limiter le nombre de résultats.
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_latest_news(request):
@@ -615,7 +612,8 @@ def generate_news_endpoint(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-
+# Ce endpoint génère une nouvelle pour une action spécifique, applique son impact sur le prix de l'action,
+#  et retourne les détails de la nouvelle créée.
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def generate_news_for_stock(request):
@@ -641,7 +639,7 @@ def generate_news_for_stock(request):
             {"error": str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
+# Ce endpoint permet à un utilisateur de se déconnecter en invalidant son token de rafraîchissement.
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout(request):
@@ -657,7 +655,8 @@ def logout(request):
 
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
-
+# Ce endpoint déclenche la création d'une nouvelle à fort impact pour une action aléatoire active,
+#  applique son impact sur le prix de l'action, et retourne les détails de la nouvelle
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def trigger_big_news(request):

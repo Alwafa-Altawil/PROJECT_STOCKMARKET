@@ -6,7 +6,7 @@ from typing import Tuple
 
 from .models import News, Stock, StockPrice
 
-# Banque de nouvelles réalistes en français
+# Banque de scripts pour les nouvelles aléatoirement générées a n'importe quel stock.
 NEWS_TEMPLATES = {
     "POSITIVE": [
         {
@@ -161,7 +161,7 @@ NEWS_TEMPLATES = {
     ],
 }
 
-
+# générer une nouvelle aléatoire pour une entreprise donnée
 def generate_news_headline(company_name: str, sentiment: str) -> Tuple[str, str, float]:
     """Generate a random headline and description for a company."""
     templates = NEWS_TEMPLATES.get(sentiment, NEWS_TEMPLATES["NEUTRAL"])
@@ -178,10 +178,10 @@ def generate_news_headline(company_name: str, sentiment: str) -> Tuple[str, str,
 def create_news_and_update_price(stock: Stock) -> News:
     """Create a news item. Price impact is applied after a tick delay."""
     
-    # Distribution demandée: 60% negative, 40% positive (no neutral).
+    #60% negative, 40% positive
     sentiment = News.NEGATIVE if random.random() < 0.6 else News.POSITIVE
     
-    # Générer la nouvelle
+    #Générer la nouvelle
     headline, description, impact_percentage = generate_news_headline(stock.name, sentiment)
     
     # Créer l'enregistrement de la nouvelle
@@ -220,10 +220,10 @@ def create_big_impact_news_for_random_stock() -> News:
 
     stock = random.choice(active)
 
-    # Distribution demandée: 60% negative, 40% positive (no neutral).
+    #  60% negative, 40% positive
     sentiment = News.NEGATIVE if random.random() < 0.6 else News.POSITIVE
 
-    # Use larger impact ranges for big events
+    # Impact sur des nouvelles sur les prix
     if sentiment == News.POSITIVE:
         impact = random.uniform(25.0, 55.0)  # +25% to +55%
         template = random.choice(NEWS_TEMPLATES["POSITIVE"]) if NEWS_TEMPLATES.get("POSITIVE") else None
@@ -239,7 +239,7 @@ def create_big_impact_news_for_random_stock() -> News:
         headline = f"Major Event for {stock.name}"
         description = f"A major event has occurred affecting {stock.name}."
 
-    # Create the news
+    
     news = News.objects.create(
         stock=stock,
         headline=headline,
@@ -251,7 +251,7 @@ def create_big_impact_news_for_random_stock() -> News:
     )
     return news
 
-
+# impact des nouvelles sur les prix, appliqué après un délai de tick
 def apply_due_news_impacts() -> list:
     """Decrease pending counters each tick and apply impacts when due."""
     applied_news = []

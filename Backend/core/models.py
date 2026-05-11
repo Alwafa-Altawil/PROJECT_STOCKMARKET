@@ -4,8 +4,13 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+# Création des models pour l'application core
+# Tous les caractéristiques de chaque model sont définis ici, et les relations entre les models sont aussi définies ici
+#Les models sont utilisés pour créer les tables dans la base de données, et pour manipuler les données dans la base de données à travers l'ORM de Django
+#Exemple: Un profil a un nom d'utilisateur, un mot de passe, un email, un solde, etc. 
+#Exemple: Un stock a un symbole, un nom, un prix, etc. Un portefeuille a un utilisateur et des actions, etc.
 
-class Profile(models.Model):
+class Profile(models.Model): 
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     password = models.CharField(max_length=255, default="")
     email = models.EmailField(default="")
@@ -96,8 +101,8 @@ class Forecast(models.Model):
         ordering = ["-created_at"]
 
 
-class News(models.Model):
-    POSITIVE = "POSITIVE"
+class News(models.Model): 
+    POSITIVE = "POSITIVE" #types de nouvelles
     NEGATIVE = "NEGATIVE"
     NEUTRAL = "NEUTRAL"
     

@@ -24,12 +24,15 @@ from .views import (
     refresh,
     trigger_big_news,
 )
-
+# Cette classe montre les endpoints disponibles pour les actions sur 
+# les stocks, le portefeuille, les transactions, les prévisions, et la génération de nouvelles.
+#  Elle inclut également les endpoints d'authentification pour l'inscription, la connexion,
+#  le rafraîchissement du token et la déconnexion.
 router = DefaultRouter()
 router.register(r'stocks', StockViewSet)
 router.register(r'portfolio', PortfolioViewSet, basename='portfolio') 
 urlpatterns = [
-    # Routes spécifiques - DOIVENT être avant include(router.urls)
+    
     path("auth/register/", register),
     path("auth/login/", login),
     path("auth/refresh/", refresh),
@@ -50,6 +53,6 @@ urlpatterns = [
     path("news/generate-stock/", generate_news_for_stock),
     path("news/trigger-big/", trigger_big_news),
     path("seed/stocks/", seed_stocks),
-    # Routes du routeur - APRÈS les routes spécifiques
+    
     path('', include(router.urls)),
 ]

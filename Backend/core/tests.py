@@ -5,11 +5,13 @@ from rest_framework.test import APITestCase
 
 from .models import Portfolio, PortfolioHolding, Profile, Stock, StockPrice, News
 
-
+# Cette classe vérifie que les utilisateurs commencent avec un solde de 100 000 et un portefeuille vide,
+#  puis teste les flux d'achat et de vente, ainsi que les endpoints de 
+# prévision et de génération de nouvelles.
 class TradingFlowTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="student", password="pass123")
-        # Ensure Profile and Portfolio are created (signal may not fire in tests)
+        # Vérifie si le profil et le portefeuille existent déjà pour cet utilisateur, sinon les crée
         Profile.objects.get_or_create(user=self.user)
         Portfolio.objects.get_or_create(user=self.user)
         self.client.force_authenticate(user=self.user) # type: ignore
@@ -71,7 +73,7 @@ class TradingFlowTests(APITestCase):
         self.assertIn("count", response.data)  # type: ignore
         self.assertIn("news", response.data)  # type: ignore
         
-        # Verify that news was created
+        # Vérifie que les nouvelles ont été créées pour l'action
         news_count = News.objects.filter(stock=self.stock).count()
         self.assertGreater(news_count, 0)
         
@@ -79,7 +81,7 @@ class TradingFlowTests(APITestCase):
         self.stock.refresh_from_db()
         
         self.assertTrue(News.objects.filter(stock=self.stock).exists())
-
+        # Vérifie que le prix de l'action a été mis à jour en fonction de l'impact de la nouvelle
     def test_get_latest_news_endpoint(self):
         """Test retrieving latest news."""
         # Create some news first

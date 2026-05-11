@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-"""
-Script to continuously generate news every minute.
-Run this in a separate terminal for continuous market news generation.
-
-Usage:
-    python news_scheduler.py
-"""
-
 import os
 import sys
 import django
@@ -19,9 +10,11 @@ django.setup()
 
 from core.news_generator import generate_all_news
 
-
+# Ce script est un générateur de nouvelles de marché qui s'exécute en continu toutes les minutes.
+# Il utilise la fonction generate_all_news pour créer de nouvelles actualités pour toutes les actions actives,
+#  applique les impacts sur les prix des actions, et affiche les nouvelles créées avec leurs impacts et sentiments.
 def main():
-    """Generate news every minute."""
+    
     print("=" * 60)
     print("Market News Generator - Running every minute")
     print("=" * 60)

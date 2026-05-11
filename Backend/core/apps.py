@@ -6,5 +6,5 @@ class CoreConfig(AppConfig):
     name = 'core'
 
     def ready(self):
-        # Import signals when the app is ready to ensure they are registered
-        import core.models  # noqa
+    
+        import core.models

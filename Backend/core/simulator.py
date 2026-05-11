@@ -11,19 +11,19 @@ def _to_money(value):
 
 
 class MarketSimulator:
-   
+   # Historique des prix stocké en mémoire
     _price_history = {}
     MAX_HISTORY = 40
-    
+     # Nombre maximum de prix conservés dans l’historique
     @classmethod
     def initialize_history(cls):
         for stock in Stock.objects.filter(is_active=True):
-            if stock.pk not in cls._price_history:
-                cls._price_history[stock.pk] = [float(stock.price)] * cls.MAX_HISTORY
+            if stock.pk not in cls._price_history:# Vérifie si l'action existe déjà dans l'historique
+                cls._price_history[stock.pk] = [float(stock.price)] * cls.MAX_HISTORY  # Crée une liste de 40 valeurs identiques
     
     @classmethod
     def get_price_history(cls, stock_id, limit=40):
-    
+        
         cls.initialize_history()
         if stock_id not in cls._price_history:
             return []
@@ -39,37 +39,35 @@ class MarketSimulator:
         cls.initialize_history()
         updated = []
         
-        # Fetch all active stocks
+        
         stocks = list(Stock.objects.filter(is_active=True))
         if not stocks:
             return updated
         
-        # Get current prices as array
         current_prices = np.array([float(stock.price) for stock in stocks])
-        
-        # Generate shocks for all stocks at once (vectorized)
+         # Génère des nombres aléatoires suivant une loi normale
+        # Ces valeurs représentent les "chocs" du marché
         shocks = np.random.standard_normal(len(stocks))
         
-        # Calculate price movements using vectorized operations
-        # dS = drift*S*dt + volatility*S*dW (Geometric Brownian Motion)
+        # nouveau_prix = ancien_prix * exp(drift + volatilité * choc)
         movements = daily_drift + daily_volatility * shocks
         new_prices = current_prices * np.exp(movements)
         
-        # Ensure prices stay above minimum
+        
         new_prices = np.maximum(new_prices, 0.5)
         
-        # Update each stock
+        
         for i, stock in enumerate(stocks):
             new_price_decimal = _to_money(new_prices[i])
             
-            # Update stock price
+            
             stock.price = new_price_decimal
             stock.save(update_fields=["price", "updated_at"])
             
-            # Record price history
+            
             StockPrice.objects.create(stock=stock, close=new_price_decimal)
             
-            # Update in-memory history
+            
             if stock.pk not in cls._price_history:
                 cls._price_history[stock.pk] = []
             
