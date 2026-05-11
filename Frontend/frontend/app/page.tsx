@@ -212,6 +212,13 @@ export default function StockApp() {
           : "bg-white border-b border-zinc-200"
       }`}>
         <div className="max-w-4xl mx-auto flex justify-between items-center">
+          {/* Logo */}
+          <div className="flex items-center gap-2 mr-4">
+            <span className="text-xl font-black hidden sm:inline">
+              <span className={isDarkMode ? "text-white" : "text-black"}>Trade</span>
+              <span className="text-blue-600">Xpert</span>
+            </span>
+          </div>
           <button
             onClick={toggleTheme}
             className={`py-3 px-4 text-sm font-bold uppercase tracking-widest transition-all rounded mr-2 ${
@@ -224,7 +231,7 @@ export default function StockApp() {
             {isDarkMode ? "🌙" : "☀️"}
           </button>
           <div className="flex justify-around flex-1">
-            {["portfolio", "watchlist", "analyse"].map((tab: string) => (
+            {["portfolio", "watchlist", "analyse", "news"].map((tab: string) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -241,12 +248,6 @@ export default function StockApp() {
             ))}
           </div>
           <div className="flex items-center gap-2 pr-4">
-            <button
-              onClick={() => setNewsModalOpen(true)}
-              className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-all hover:bg-blue-50 rounded"
-            >
-              News
-            </button>
             <button
               onClick={() => auth.logout()}
               className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
@@ -591,6 +592,78 @@ export default function StockApp() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* News Tab */}
+        {activeTab === "news" && (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className={`p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-zinc-700 border-zinc-600"
+                : "bg-white border-zinc-100"
+            }`}>
+              <h2 className={`text-xs font-black uppercase mb-8 tracking-widest ${isDarkMode ? "text-zinc-300" : "text-zinc-400"}`}>
+                Market News
+              </h2>
+              {news.news && news.news.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className={`border-b ${isDarkMode ? "border-zinc-600" : "border-zinc-200"}`}>
+                        <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-zinc-300" : "text-zinc-600"}`}>
+                          Stock
+                        </th>
+                        <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-zinc-300" : "text-zinc-600"}`}>
+                          Headline
+                        </th>
+                        <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-zinc-300" : "text-zinc-600"}`}>
+                          Impact
+                        </th>
+                        <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-zinc-300" : "text-zinc-600"}`}>
+                          Created
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {news.news.map((newsItem: News) => (
+                        <tr
+                          key={newsItem.id}
+                          className={`border-b transition-colors duration-300 cursor-pointer ${
+                            isDarkMode
+                              ? "border-zinc-600 hover:bg-zinc-600"
+                              : "border-zinc-100 hover:bg-zinc-50"
+                          }`}
+                          onClick={() => {
+                            setSelectedStock(market.stocks.find((s) => s.id === newsItem.stock.id) || null);
+                            setActiveTab("portfolio");
+                          }}
+                        >
+                          <td className={`py-5 px-6 font-bold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
+                            {newsItem.stock.symbol}
+                          </td>
+                          <td className={`py-5 px-6 ${isDarkMode ? "text-zinc-300" : "text-zinc-600"}`}>
+                            {newsItem.headline}
+                          </td>
+                          <td className={`py-5 px-6 font-semibold ${
+                            newsItem.impact_percentage >= 0 ? "text-green-500" : "text-red-500"
+                          }`}>
+                            {newsItem.impact_percentage >= 0 ? "+" : ""}{newsItem.impact_percentage.toFixed(2)}%
+                          </td>
+                          <td className={`py-5 px-6 text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                            {new Date(newsItem.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className={`text-center py-8 ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                  No news available
+                </p>
+              )}
             </div>
           </div>
         )}

@@ -42,7 +42,10 @@ export function AuthForm({
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-zinc-100">
           {/* Logo/Title */}
           <div className="mb-8 text-center">
-            <h1 className="text-4xl font-black text-blue-600 mb-2">StockMarket</h1>
+            <h1 className="text-5xl font-black mb-2">
+              <span className="text-black">Trade</span>
+              <span className="text-blue-600">Xpert</span>
+            </h1>
             <p className="text-zinc-600">Trading Simulator</p>
           </div>
 
