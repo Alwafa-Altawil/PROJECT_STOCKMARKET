@@ -6,9 +6,10 @@ interface ChartComponentProps {
   data: number[];
   symbol: string;
   height?: number;
+  isDarkMode?: boolean;
 }
 
-export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentProps) => {
+export const ChartComponent = ({ data, symbol, height = 256, isDarkMode }: ChartComponentProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const resizeListenerRef = useRef<(() => void) | null>(null);
@@ -156,7 +157,7 @@ export const ChartComponent = ({ data, symbol, height = 256 }: ChartComponentPro
         height: `${height}px`,
         position: 'relative',
         minHeight: `${height}px`,
-        backgroundColor: '#fff',
+        backgroundColor: isDarkMode ? '#3f3f46' : '#fff',
       }}
     />
   );

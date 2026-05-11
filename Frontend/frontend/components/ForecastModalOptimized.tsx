@@ -8,6 +8,7 @@ interface ForecastModalProps {
   forecast: Forecast | null;
   isOpen: boolean;
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
 // OPTIMIZATION 1: Data downsampling using Largest-Triangle-Three-Buckets algorithm
@@ -61,7 +62,7 @@ const useDebounce = (callback: (...args: any[]) => void, delay: number) => {
   );
 };
 
-export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastModalProps) => {
+export const ForecastModalOptimized = ({ forecast, isOpen, onClose, isDarkMode }: ForecastModalProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any[]>([]);
@@ -132,8 +133,8 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
           width: Math.max(width, 100),
           height: Math.max(height, 100),
           layout: {
-            textColor: '#626262',
-            background: { type: 'solid' as const, color: '#ffffff' },
+            textColor: isDarkMode ? '#e4e4e7' : '#626262',
+            background: { type: 'solid' as const, color: isDarkMode ? '#3f3f46' : '#ffffff' },
             fontSize: 12,
           },
           timeScale: {
@@ -153,17 +154,17 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
             mode: 1, // Normal crosshair
             vertLine: {
               width: 1,
-              color: '#cccccc',
+              color: isDarkMode ? '#52525b' : '#cccccc',
               style: 1,
             },
             horzLine: {
               width: 1,
-              color: '#cccccc',
+              color: isDarkMode ? '#52525b' : '#cccccc',
               style: 1,
             },
           },
           grid: {
-            horzLines: { visible: true, color: '#f0f0f0' },
+            horzLines: { visible: true, color: isDarkMode ? '#4f46e5' : '#f0f0f0' },
             vertLines: { visible: false }, // Disable to reduce rendering
           },
           handleScale: {
@@ -302,17 +303,29 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-auto">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-auto my-auto">
-        <div className="sticky top-0 bg-white border-b border-zinc-200 p-6 flex justify-between items-center z-10">
+      <div className={`rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-auto my-auto transition-colors duration-300 ${
+        isDarkMode
+          ? "bg-zinc-800"
+          : "bg-white"
+      }`}>
+        <div className={`sticky top-0 p-6 flex justify-between items-center z-10 border-b transition-colors duration-300 ${
+          isDarkMode
+            ? "bg-zinc-800 border-zinc-700"
+            : "bg-white border-zinc-200"
+        }`}>
           <div>
-            <h2 className="text-2xl font-bold">{forecast.stock.symbol} Forecast</h2>
-            <p className="text-sm text-zinc-600 mt-1">
+            <h2 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{forecast.stock.symbol} Forecast</h2>
+            <p className={`text-sm mt-1 ${isDarkMode ? "text-zinc-400" : "text-zinc-600"}`}>
               {forecast.horizon_days} days • {forecast.paths.toLocaleString()} simulations
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-700 text-3xl font-bold leading-none p-0"
+            className={`text-3xl font-bold leading-none p-0 transition-colors duration-300 ${
+              isDarkMode
+                ? "text-zinc-400 hover:text-zinc-200"
+                : "text-zinc-500 hover:text-zinc-700"
+            }`}
           >
             ×
           </button>
@@ -322,15 +335,19 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
           {loading && (
             <div className="flex flex-col justify-center items-center h-96 gap-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              <p className="text-zinc-700 font-medium">Optimizing visualization...</p>
-              <p className="text-sm text-zinc-500">
+              <p className={`font-medium ${isDarkMode ? "text-zinc-200" : "text-zinc-700"}`}>Optimizing visualization...</p>
+              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
                 Downsampling {forecast.paths.toLocaleString()} simulations for smooth rendering
               </p>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
+            <div className={`border rounded p-4 transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-red-900 border-red-700 text-red-200"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}>
               Error: {error}
             </div>
           )}
@@ -344,37 +361,57 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose }: ForecastMo
                   height: '400px',
                   position: 'relative',
                   marginBottom: '24px',
-                  background: '#ffffff',
+                  background: isDarkMode ? '#3f3f46' : '#ffffff',
                 }}
-                className="border border-zinc-200 rounded"
+                className={`border rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? "border-zinc-700"
+                    : "border-zinc-200"
+                }`}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-6 border-t border-zinc-200">
-                <div className="p-4 bg-red-50 rounded">
-                  <p className="text-sm text-red-600 font-semibold">5th Percentile</p>
-                  <p className="text-2xl font-bold text-red-700">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-6 border-t transition-colors duration-300" style={{borderTopColor: isDarkMode ? '#3f3f46' : '#e4e4e7'}}>
+                <div className={`p-4 rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? "bg-red-900 text-red-200"
+                    : "bg-red-50"
+                }`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-red-200" : "text-red-600"}`}>5th Percentile</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-red-200" : "text-red-700"}`}>
                     ${Number(forecast.percentile_5).toFixed(2)}
                   </p>
                 </div>
 
-                <div className="p-4 bg-yellow-50 rounded">
-                  <p className="text-sm text-yellow-600 font-semibold">Median</p>
-                  <p className="text-2xl font-bold text-yellow-700">
+                <div className={`p-4 rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? "bg-yellow-900 text-yellow-200"
+                    : "bg-yellow-50"
+                }`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-yellow-200" : "text-yellow-600"}`}>Median</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-yellow-200" : "text-yellow-700"}`}>
                     ${Number(forecast.median).toFixed(2)}
                   </p>
                 </div>
 
-                <div className="p-4 bg-green-50 rounded">
-                  <p className="text-sm text-green-600 font-semibold">95th Percentile</p>
-                  <p className="text-2xl font-bold text-green-700">
+                <div className={`p-4 rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? "bg-green-900 text-green-200"
+                    : "bg-green-50"
+                }`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-green-200" : "text-green-600"}`}>95th Percentile</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-green-200" : "text-green-700"}`}>
                     ${Number(forecast.percentile_95).toFixed(2)}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-blue-50 rounded">
-                <p className="text-sm text-blue-600 font-semibold">Probability of Price Increase</p>
-                <p className="text-2xl font-bold text-blue-700">
+              <div className={`mt-6 p-4 rounded transition-colors duration-300 ${
+                isDarkMode
+                  ? "bg-blue-900 text-blue-200"
+                  : "bg-blue-50"
+              }`}>
+                <p className={`text-sm font-semibold ${isDarkMode ? "text-blue-200" : "text-blue-600"}`}>Probability of Price Increase</p>
+                <p className={`text-2xl font-bold ${isDarkMode ? "text-blue-200" : "text-blue-700"}`}>
                   {(Number(forecast.probability_up) * 100).toFixed(1)}%
                 </p>
               </div>
