@@ -212,17 +212,24 @@ export default function StockApp() {
           : "bg-white border-b border-zinc-200"
       }`}>
         <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <button
-            onClick={toggleTheme}
-            className={`py-3 px-4 text-sm font-bold uppercase tracking-widest transition-all rounded mr-2 ${
-              isDarkMode
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-amber-400 text-zinc-900 hover:bg-amber-500"
-            }`}
-            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          >
-            {isDarkMode ? "🌙" : "☀️"}
-          </button>
+          <div className="flex items-center gap-3 py-3 px-4">
+            <button
+              onClick={toggleTheme}
+              className={`py-2 px-3 text-sm font-bold uppercase tracking-widest rounded transition-all ${
+                isDarkMode
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-amber-400 text-zinc-900 hover:bg-amber-500"
+              }`}
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDarkMode ? "🌙" : "☀️"}
+            </button>
+            <span className={`text-lg font-black hidden sm:inline ${
+              isDarkMode ? "text-white" : "text-black"
+            }`}>
+              Trade<span className="text-blue-600">Xpert</span>
+            </span>
+          </div>
           <div className="flex justify-around flex-1">
             {["portfolio", "watchlist", "analyse"].map((tab: string) => (
               <button
@@ -243,13 +250,21 @@ export default function StockApp() {
           <div className="flex items-center gap-2 pr-4">
             <button
               onClick={() => setNewsModalOpen(true)}
-              className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-all hover:bg-blue-50 rounded"
+              className={`px-4 py-2 text-sm font-bold transition-all rounded ${
+                isDarkMode
+                  ? "text-blue-400 hover:text-blue-300 hover:bg-zinc-700"
+                  : "text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              }`}
             >
               News
             </button>
             <button
               onClick={() => auth.logout()}
-              className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 transition-all"
+              className={`px-4 py-2 text-sm font-bold transition-all ${
+                isDarkMode
+                  ? "text-red-400 hover:text-red-300"
+                  : "text-red-600 hover:text-red-700"
+              }`}
             >
               Logout
             </button>
@@ -286,10 +301,12 @@ export default function StockApp() {
               <StatCard
                 title="Prix Sélectionné"
                 value={selectedStock ? `$${Number(selectedStock.price).toFixed(2)}` : "-"}
+                isDarkMode={isDarkMode}
               />
               <StatCard
                 title="Mon Solde"
                 value={market.portfolio ? `$${market.portfolio.balance.toFixed(2)}` : "-"}
+                isDarkMode={isDarkMode}
               />
               <StatCard
                 title="Portefeuille"
@@ -299,15 +316,22 @@ export default function StockApp() {
                     ? `${market.portfolio.total_return_pct.toFixed(2)}%`
                     : "-"
                 }
+                isDarkMode={isDarkMode}
               />
             </div>
 
             {/* Chart and Trading */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Chart */}
-              <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
+              <div className={`lg:col-span-2 p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+                isDarkMode
+                  ? "bg-zinc-800 border-zinc-700"
+                  : "bg-white border-zinc-100"
+              }`}>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-zinc-400 text-xs font-black uppercase">
+                  <h3 className={`text-xs font-black uppercase transition-colors duration-300 ${
+                    isDarkMode ? "text-zinc-400" : "text-zinc-400"
+                  }`}>
                     Graphique en Direct - {selectedStock?.symbol || ""}
                   </h3>
                   <select
@@ -316,7 +340,11 @@ export default function StockApp() {
                       const stock = market.stocks.find((s) => s.id === parseInt(e.target.value));
                       setSelectedStock(stock || null);
                     }}
-                    className="px-3 py-1 border border-zinc-300 rounded text-sm"
+                    className={`px-3 py-1 border rounded text-sm transition-colors duration-300 ${
+                      isDarkMode
+                        ? "bg-zinc-700 border-zinc-600 text-white"
+                        : "border-zinc-300 bg-white text-zinc-900"
+                    }`}
                   >
                     {market.stocks.map((stock) => (
                       <option key={stock.id} value={stock.id}>
@@ -327,47 +355,73 @@ export default function StockApp() {
                 </div>
 
                 {selectedStock && selectedStock.history && selectedStock.history.length > 0 ? (
-                  <ChartComponent data={selectedStock.history} symbol={selectedStock.symbol} height={256} />
+                  <ChartComponent data={selectedStock.history} symbol={selectedStock.symbol} height={256} isDarkMode={isDarkMode} />
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-zinc-400">
+                  <div className={`h-64 flex items-center justify-center transition-colors duration-300 ${
+                    isDarkMode ? "text-zinc-500" : "text-zinc-400"
+                  }`}>
                     No data available
                   </div>
                 )}
 
-                <div className="mt-6 pt-6 border-t border-zinc-200">
+                <div className={`mt-6 pt-6 border-t transition-colors duration-300 ${
+                  isDarkMode ? "border-zinc-700" : "border-zinc-200"
+                }`}>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-zinc-500">Prix Actuel</p>
-                      <p className="text-2xl font-bold">
+                      <p className={`transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                      }`}>Prix Actuel</p>
+                      <p className={`text-2xl font-bold transition-colors duration-300 ${
+                        isDarkMode ? "text-white" : "text-zinc-900"
+                      }`}>
                         ${Number(selectedStock?.price).toFixed(2)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-zinc-500">Dernier Tick</p>
-                      <p className="text-sm">{selectedStock?.updated_at}</p>
+                      <p className={`transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                      }`}>Dernier Tick</p>
+                      <p className={`text-sm transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-700"
+                      }`}>{selectedStock?.updated_at}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Trading Panel */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100 h-fit">
-                <h3 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+              <div className={`p-6 rounded-3xl shadow-sm border h-fit transition-colors duration-300 ${
+                isDarkMode
+                  ? "bg-zinc-800 border-zinc-700"
+                  : "bg-white border-zinc-100"
+              }`}>
+                <h3 className={`text-xs font-black uppercase mb-6 tracking-widest transition-colors duration-300 ${
+                  isDarkMode ? "text-zinc-400" : "text-zinc-400"
+                }`}>
                   Effectuer une Transaction
                 </h3>
 
                 {selectedStock && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                      }`}>
                         Stock
                       </label>
-                      <p className="text-xl font-bold">{selectedStock.symbol}</p>
-                      <p className="text-sm text-zinc-500">{selectedStock.name}</p>
+                      <p className={`text-xl font-bold transition-colors duration-300 ${
+                        isDarkMode ? "text-white" : "text-zinc-900"
+                      }`}>{selectedStock.symbol}</p>
+                      <p className={`text-sm transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                      }`}>{selectedStock.name}</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                      }`}>
                         Quantité
                       </label>
                       <input
@@ -377,15 +431,23 @@ export default function StockApp() {
                         onChange={(e) =>
                           setQuantity(Math.max(1, parseInt(e.target.value) || 1))
                         }
-                        className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                          isDarkMode
+                            ? "bg-zinc-700 border-zinc-600 text-white"
+                            : "border-zinc-300 bg-white text-zinc-900"
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                      }`}>
                         Cost
                       </label>
-                      <p className="text-lg font-bold">
+                      <p className={`text-lg font-bold transition-colors duration-300 ${
+                        isDarkMode ? "text-white" : "text-zinc-900"
+                      }`}>
                         ${(quantity * Number(selectedStock.price)).toFixed(2)}
                       </p>
                     </div>
@@ -417,42 +479,72 @@ export default function StockApp() {
 
             {/* Holdings */}
             {market.portfolio && market.portfolio.holdings.length > 0 && (
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-                <h3 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+              <div className={`p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+                isDarkMode
+                  ? "bg-zinc-800 border-zinc-700"
+                  : "bg-white border-zinc-100"
+              }`}>
+                <h3 className={`text-xs font-black uppercase mb-6 tracking-widest transition-colors duration-300 ${
+                  isDarkMode ? "text-zinc-400" : "text-zinc-400"
+                }`}>
                   Mes Positions
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-zinc-200">
-                        <th className="text-left py-3 font-semibold text-zinc-700">Symbole</th>
-                        <th className="text-right py-3 font-semibold text-zinc-700">Quantité</th>
-                        <th className="text-right py-3 font-semibold text-zinc-700">
+                      <tr className={`border-b transition-colors duration-300 ${
+                        isDarkMode ? "border-zinc-700" : "border-zinc-200"
+                      }`}>
+                        <th className={`text-left py-3 font-semibold transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                        }`}>Symbole</th>
+                        <th className={`text-right py-3 font-semibold transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                        }`}>Quantité</th>
+                        <th className={`text-right py-3 font-semibold transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                        }`}>
                           Prix Actuel
                         </th>
-                        <th className="text-right py-3 font-semibold text-zinc-700">Valeur</th>
-                        <th className="text-right py-3 font-semibold text-zinc-700">Gain/Perte</th>
+                        <th className={`text-right py-3 font-semibold transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                        }`}>Valeur</th>
+                        <th className={`text-right py-3 font-semibold transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                        }`}>Gain/Perte</th>
                       </tr>
                     </thead>
                     <tbody>
                       {market.portfolio.holdings.map((holding) => (
                         <tr
                           key={holding.stock_id}
-                          className="border-b border-zinc-100 hover:bg-zinc-50"
+                          className={`border-b transition-colors duration-300 ${
+                            isDarkMode
+                              ? "border-zinc-700 hover:bg-zinc-700"
+                              : "border-zinc-100 hover:bg-zinc-50"
+                          }`}
                         >
-                          <td className="py-3 font-semibold">{holding.symbol}</td>
-                          <td className="text-right py-3">{holding.quantity}</td>
-                          <td className="text-right py-3">
+                          <td className={`py-3 font-semibold transition-colors duration-300 ${
+                            isDarkMode ? "text-white" : "text-zinc-900"
+                          }`}>{holding.symbol}</td>
+                          <td className={`text-right py-3 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-200" : "text-zinc-900"
+                          }`}>{holding.quantity}</td>
+                          <td className={`text-right py-3 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-200" : "text-zinc-900"
+                          }`}>
                             ${holding.current_price.toFixed(2)}
                           </td>
-                          <td className="text-right py-3">
+                          <td className={`text-right py-3 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-200" : "text-zinc-900"
+                          }`}>
                             ${holding.position_value.toFixed(2)}
                           </td>
                           <td
                             className={`text-right py-3 font-semibold ${
                               holding.unrealized_gain >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-500"
+                                : "text-red-500"
                             }`}
                           >
                             ${holding.unrealized_gain.toFixed(2)}
@@ -470,27 +562,45 @@ export default function StockApp() {
         {/* Watchlist Tab */}
         {activeTab === "watchlist" && (
           <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-              <h2 className="text-zinc-400 text-xs font-black uppercase mb-8 tracking-widest">
+            <div className={`p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-zinc-800 border-zinc-700"
+                : "bg-white border-zinc-100"
+            }`}>
+              <h2 className={`text-xs font-black uppercase mb-8 tracking-widest transition-colors duration-300 ${
+                isDarkMode ? "text-zinc-400" : "text-zinc-400"
+              }`}>
                 My Watchlist
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-zinc-200">
-                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                    <tr className={`border-b transition-colors duration-300 ${
+                      isDarkMode ? "border-zinc-700" : "border-zinc-200"
+                    }`}>
+                      <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                      }`}>
                         Ticker
                       </th>
-                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                      <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                      }`}>
                         Company Name
                       </th>
-                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                      <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                      }`}>
                         Last Price
                       </th>
-                      <th className="text-left py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                      <th className={`text-left py-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                      }`}>
                         Change
                       </th>
-                      <th className="text-right py-4 px-6 text-xs font-semibold text-zinc-600 uppercase tracking-wider">
+                      <th className={`text-right py-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors duration-300 ${
+                        isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                      }`}>
                         Last 24 hours
                       </th>
                     </tr>
@@ -508,15 +618,25 @@ export default function StockApp() {
                       return (
                         <tr
                           key={stock.id}
-                          className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors cursor-pointer"
+                          className={`border-b transition-colors duration-300 cursor-pointer ${
+                            isDarkMode
+                              ? "border-zinc-700 hover:bg-zinc-700"
+                              : "border-zinc-100 hover:bg-zinc-50"
+                          }`}
                           onClick={() => {
                             setSelectedStock(stock);
                             setActiveTab("portfolio");
                           }}
                         >
-                          <td className="py-5 px-6 font-bold text-zinc-900">{stock.symbol}</td>
-                          <td className="py-5 px-6 text-zinc-600">{stock.name}</td>
-                          <td className="py-5 px-6 font-semibold text-zinc-900">
+                          <td className={`py-5 px-6 font-bold transition-colors duration-300 ${
+                            isDarkMode ? "text-white" : "text-zinc-900"
+                          }`}>{stock.symbol}</td>
+                          <td className={`py-5 px-6 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-300" : "text-zinc-600"
+                          }`}>{stock.name}</td>
+                          <td className={`py-5 px-6 font-semibold transition-colors duration-300 ${
+                            isDarkMode ? "text-white" : "text-zinc-900"
+                          }`}>
                             ${Number(stock.price).toFixed(2)}
                           </td>
                           <td className={`py-5 px-6 font-semibold ${isPositive ? "text-green-500" : "text-red-500"}`}>
@@ -562,20 +682,32 @@ export default function StockApp() {
         {activeTab === "analyse" && (
           <div className="space-y-6 animate-in fade-in duration-500">
             {/* Monte Carlo Forecast */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+            <div className={`p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-zinc-800 border-zinc-700"
+                : "bg-white border-zinc-100"
+            }`}>
+              <h2 className={`text-xs font-black uppercase mb-6 tracking-widest transition-colors duration-300 ${
+                isDarkMode ? "text-zinc-400" : "text-zinc-400"
+              }`}>
                 Créer une Prédiction (Monte Carlo)
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Action</label>
+                  <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                    isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                  }`}>Action</label>
                   <select
                     value={selectedStock?.id || ""}
                     onChange={(e) => {
                       const stock = market.stocks.find((s) => s.id === parseInt(e.target.value));
                       setSelectedStock(stock || null);
                     }}
-                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      isDarkMode
+                        ? "bg-zinc-700 border-zinc-600 text-white"
+                        : "border-zinc-300 bg-white text-zinc-900"
+                    }`}
                   >
                     <option value="">Sélectionner une action</option>
                     {market.stocks.map((stock) => (
@@ -587,7 +719,9 @@ export default function StockApp() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                    isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                  }`}>
                     Horizon (jours)
                   </label>
                   <input
@@ -600,18 +734,28 @@ export default function StockApp() {
                         Math.max(1, Math.min(365, parseInt(e.target.value) || 30))
                       )
                     }
-                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      isDarkMode
+                        ? "bg-zinc-700 border-zinc-600 text-white"
+                        : "border-zinc-300 bg-white text-zinc-900"
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 transition-colors duration-300 ${
+                    isDarkMode ? "text-zinc-200" : "text-zinc-700"
+                  }`}>
                     Simulations
                   </label>
                   <select
                     value={forecastPaths}
                     onChange={(e) => setForecastPaths(parseInt(e.target.value))}
-                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      isDarkMode
+                        ? "bg-zinc-700 border-zinc-600 text-white"
+                        : "border-zinc-300 bg-white text-zinc-900"
+                    }`}
                   >
                     <option value="1000">1,000</option>
                     <option value="5000">5,000</option>
@@ -632,13 +776,21 @@ export default function StockApp() {
             </div>
 
             {/* Forecasts History */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100">
-              <h2 className="text-zinc-400 text-xs font-black uppercase mb-6 tracking-widest">
+            <div className={`p-8 rounded-3xl shadow-sm border transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-zinc-800 border-zinc-700"
+                : "bg-white border-zinc-100"
+            }`}>
+              <h2 className={`text-xs font-black uppercase mb-6 tracking-widest transition-colors duration-300 ${
+                isDarkMode ? "text-zinc-400" : "text-zinc-400"
+              }`}>
                 Mes Prédictions
               </h2>
 
               {market.forecasts.length === 0 ? (
-                <p className="text-zinc-500 text-center py-8">
+                <p className={`text-center py-8 transition-colors duration-300 ${
+                  isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                }`}>
                   Aucune prédiction. Créez-en une pour commencer!
                 </p>
               ) : (
@@ -646,56 +798,80 @@ export default function StockApp() {
                   {market.forecasts.map((forecast: Forecast) => (
                     <div
                       key={forecast.id}
-                      className="border border-zinc-200 rounded-2xl p-6 hover:shadow-md transition-all"
+                      className={`border rounded-2xl p-6 hover:shadow-md transition-all ${
+                        isDarkMode
+                          ? "border-zinc-700 bg-zinc-700 hover:bg-zinc-600"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50"
+                      }`}
                     >
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h3 className="text-lg font-bold text-blue-600">
                             {forecast.stock.symbol}
                           </h3>
-                          <p className="text-sm text-zinc-500">{forecast.stock.name}</p>
+                          <p className={`text-sm transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                          }`}>{forecast.stock.name}</p>
                         </div>
-                        <p className="text-xs text-zinc-400">
+                        <p className={`text-xs transition-colors duration-300 ${
+                          isDarkMode ? "text-zinc-500" : "text-zinc-400"
+                        }`}>
                           {new Date(forecast.created_at).toLocaleDateString()}
                         </p>
                       </div>
 
                       <div className="space-y-3 mb-4">
                         <div>
-                          <p className="text-xs text-zinc-500 mb-1">RÉSUMÉ</p>
+                          <p className={`text-xs mb-1 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                          }`}>RÉSUMÉ</p>
                           <div className="grid grid-cols-3 gap-2 text-sm">
                             <div>
                               <p className="font-bold text-red-600">
                                 ${Number(forecast.percentile_5).toFixed(2)}
                               </p>
-                              <p className="text-xs text-zinc-500">5e %ile</p>
+                              <p className={`text-xs transition-colors duration-300 ${
+                                isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                              }`}>5e %ile</p>
                             </div>
                             <div>
                               <p className="font-bold text-blue-600">
                                 ${Number(forecast.median).toFixed(2)}
                               </p>
-                              <p className="text-xs text-zinc-500">Médiane</p>
+                              <p className={`text-xs transition-colors duration-300 ${
+                                isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                              }`}>Médiane</p>
                             </div>
                             <div>
                               <p className="font-bold text-green-600">
                                 ${Number(forecast.percentile_95).toFixed(2)}
                               </p>
-                              <p className="text-xs text-zinc-500">95e %ile</p>
+                              <p className={`text-xs transition-colors duration-300 ${
+                                isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                              }`}>95e %ile</p>
                             </div>
                           </div>
                         </div>
 
                         <div>
-                          <p className="text-xs text-zinc-500 mb-1">PRIX ACTUEL</p>
-                          <p className="font-bold">
+                          <p className={`text-xs mb-1 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                          }`}>PRIX ACTUEL</p>
+                          <p className={`font-bold transition-colors duration-300 ${
+                            isDarkMode ? "text-white" : "text-zinc-900"
+                          }`}>
                             ${Number(forecast.stock.price).toFixed(2)}
                           </p>
                         </div>
 
                         <div>
-                          <p className="text-xs text-zinc-500 mb-1">PROBABILITÉ À LA HAUSSE</p>
+                          <p className={`text-xs mb-1 transition-colors duration-300 ${
+                            isDarkMode ? "text-zinc-400" : "text-zinc-500"
+                          }`}>PROBABILITÉ À LA HAUSSE</p>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden">
+                            <div className={`flex-1 h-2 rounded-full overflow-hidden transition-colors duration-300 ${
+                              isDarkMode ? "bg-zinc-600" : "bg-zinc-200"
+                            }`}>
                               <div
                                 className={`h-full ${
                                   forecast.probability_up > 0.5
@@ -711,7 +887,11 @@ export default function StockApp() {
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-zinc-200 text-xs text-zinc-500">
+                        <div className={`pt-2 border-t text-xs transition-colors duration-300 ${
+                          isDarkMode
+                            ? "border-zinc-600 text-zinc-400"
+                            : "border-zinc-200 text-zinc-500"
+                        }`}>
                           <p>
                             Horizon: {forecast.horizon_days}j • Simulations:{" "}
                             {forecast.paths.toLocaleString()}
@@ -763,12 +943,14 @@ export default function StockApp() {
           setForecastModalOpen(false);
           setSelectedForecast(null);
         }}
+        isDarkMode={isDarkMode}
       />
 
       <NewsModal
         isOpen={newsModalOpen}
         onClose={() => setNewsModalOpen(false)}
         stocks={market.stocks}
+        isDarkMode={isDarkMode}
       />
     </div>
   );

@@ -49,6 +49,10 @@ export const ChartComponent = ({ data, symbol, height = 256, isDarkMode }: Chart
         const chart = createChart(containerRef.current, {
           width: Math.max(width, 100),
           height: Math.max(height, 100),
+          layout: {
+            background: { color: isDarkMode ? '#27272a' : '#ffffff' },
+            textColor: isDarkMode ? '#d4d4d8' : '#333333',
+          },
           timeScale: {
             timeVisible: false,
             secondsVisible: false,
@@ -61,8 +65,8 @@ export const ChartComponent = ({ data, symbol, height = 256, isDarkMode }: Chart
 
         const areaSeries = chart.addAreaSeries({
           lineColor: '#2563eb',
-          topColor: '#2563eb',
-          bottomColor: 'rgba(37, 99, 235, 0.2)',
+          topColor: isDarkMode ? '#1e40af' : '#2563eb',
+          bottomColor: isDarkMode ? 'rgba(30, 64, 175, 0.2)' : 'rgba(37, 99, 235, 0.2)',
           lineWidth: 2,
         });
 
@@ -116,8 +120,8 @@ export const ChartComponent = ({ data, symbol, height = 256, isDarkMode }: Chart
           <svg viewBox="0 0 400 200" style="width: 100%; height: 100%; display: block;">
             <defs>
               <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#2563eb;stop-opacity:0.3" />
-                <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0" />
+                <stop offset="0%" style="stop-color:${isDarkMode ? '#1e40af' : '#2563eb'};stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:${isDarkMode ? '#1e40af' : '#2563eb'};stop-opacity:0" />
               </linearGradient>
             </defs>
             <polyline fill="none" stroke="#2563eb" stroke-width="2" points="${points}" />
@@ -157,7 +161,7 @@ export const ChartComponent = ({ data, symbol, height = 256, isDarkMode }: Chart
         height: `${height}px`,
         position: 'relative',
         minHeight: `${height}px`,
-        backgroundColor: isDarkMode ? '#3f3f46' : '#fff',
+        backgroundColor: isDarkMode ? '#27272a' : '#fff',
       }}
     />
   );
