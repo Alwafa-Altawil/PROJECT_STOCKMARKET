@@ -11,321 +11,227 @@ interface ForecastModalProps {
   isDarkMode?: boolean;
 }
 
-// OPTIMIZATION 1: Data downsampling using Largest-Triangle-Three-Buckets algorithm
-// Reduces points while preserving visual accuracy
-const downsampleData = (data: number[], bucketSize: number): number[] => {
-  if (data.length <= bucketSize) return data;
-
-  const result: number[] = [data[0]]; // Keep first point
-
-  for (let i = 1; i < data.length - 1; i += bucketSize) {
-    const bucket = data.slice(i, Math.min(i + bucketSize, data.length - 1));
-    const maxPrice = Math.max(...bucket);
-    const minPrice = Math.min(...bucket);
-    const avgPrice = bucket.reduce((a, b) => a + b, 0) / bucket.length;
-    
-    // Use the point closest to average for best representation
-    let closest = bucket[0];
-    let closestDist = Math.abs(closest - avgPrice);
-    
-    for (const price of bucket) {
-      const dist = Math.abs(price - avgPrice);
-      if (dist < closestDist) {
-        closest = price;
-        closestDist = dist;
-      }
-    }
-    
-    result.push(closest);
-  }
-
-  result.push(data[data.length - 1]); // Keep last point
-  return result;
-};
-
-// OPTIMIZATION 2: Debounce hook for resize events
-const useDebounce = (callback: (...args: any[]) => void, delay: number) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  return useCallback(
-    (...args: any[]) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => callback(...args), delay);
-    },
-    [callback, delay]
-  );
-};
-
 export const ForecastModalOptimized = ({ forecast, isOpen, onClose, isDarkMode }: ForecastModalProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any[]>([]);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<{
+    paths: number[][];
+    p5: number;
+    p50: number;
+    p95: number;
+  } | null>(null);
 
-  // OPTIMIZATION 3: Debounced resize handler
-  const handleResizeDebounced = useDebounce(() => {
-    if (!containerRef.current || !chartRef.current) return;
+  const drawChart = useCallback(() => {
+    if (!canvasRef.current || !chartData) return;
 
-    try {
-      const newWidth = containerRef.current.clientWidth;
-      if (newWidth > 100) {
-        chartRef.current.applyOptions({
-          width: newWidth,
-        });
-      }
-    } catch (err) {
-      console.error('Resize error:', err);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const { paths, p5, p50, p95 } = chartData;
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = 50;
+
+    // Clear canvas
+    ctx.fillStyle = isDarkMode ? '#3f3f46' : '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    const allPrices = paths.flat();
+    const minPrice = Math.min(...allPrices, p5, p50, p95);
+    const maxPrice = Math.max(...allPrices, p5, p50, p95);
+    const priceRange = maxPrice - minPrice || 1;
+
+    const scaleX = (dayIndex: number, totalDays: number) => {
+      return padding + ((dayIndex / Math.max(totalDays - 1, 1)) * (width - 2 * padding));
+    };
+
+    const scaleY = (price: number) => {
+      return height - padding - ((price - minPrice) / priceRange) * (height - 2 * padding);
+    };
+
+    // Draw grid
+    ctx.strokeStyle = isDarkMode ? '#52525b' : '#e4e4e7';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 5; i++) {
+      const x = padding + (i / 5) * (width - 2 * padding);
+      const y = padding + (i / 5) * (height - 2 * padding);
+      ctx.beginPath();
+      ctx.moveTo(x, padding);
+      ctx.lineTo(x, height - padding);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(width - padding, y);
+      ctx.stroke();
     }
-  }, 300);
 
+    // Draw axis labels
+    ctx.fillStyle = isDarkMode ? '#a1a1aa' : '#71717a';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {
+      const price = minPrice + (i / 5) * priceRange;
+      const y = height - padding - (i / 5) * (height - 2 * padding);
+      ctx.fillText(`${price.toFixed(0)}`, padding - 10, y + 4);
+    }
+
+    ctx.textAlign = 'center';
+    const maxDays = paths[0]?.length || 1;
+    for (let i = 0; i <= 5; i++) {
+      const day = Math.floor((i / 5) * (maxDays - 1));
+      const x = scaleX(day, maxDays);
+      ctx.fillText(`${day}`, x, height - 20);
+    }
+
+    // Draw axis titles
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = isDarkMode ? '#d4d4d8' : '#27272a';
+    ctx.textAlign = 'center';
+    ctx.fillText('Jours', width / 2, height - 2);
+    
+    ctx.save();
+    ctx.translate(15, height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillText('Prix ($)', 0, 0);
+    ctx.restore();
+
+    // Draw paths (sample every Nth path to reduce rendering)
+    const pathSampleRate = Math.max(1, Math.floor(paths.length / 50));
+    ctx.strokeStyle = 'rgba(37, 99, 235, 0.35)';
+    ctx.lineWidth = 2;
+    
+    for (let p = 0; p < paths.length; p += pathSampleRate) {
+      const path = paths[p];
+      if (!path) continue;
+      
+      ctx.beginPath();
+      for (let i = 0; i < path.length; i++) {
+        const x = scaleX(i, path.length);
+        const y = scaleY(path[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Draw percentile lines (always visible)
+    const percentiles = [
+      { value: p5, color: '#ef4444', label: '5th' },
+      { value: p50, color: '#eab308', label: '50th' },
+      { value: p95, color: '#22c55e', label: '95th' },
+    ];
+
+    for (const { value, color } of percentiles) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      const startPrice = paths[0]?.[0] || value;
+      ctx.moveTo(scaleX(0, maxDays), scaleY(startPrice));
+      ctx.lineTo(scaleX(maxDays - 1, maxDays), scaleY(value));
+      ctx.stroke();
+    }
+
+    // Draw legend
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = isDarkMode ? '#e4e4e7' : '#09090b';
+    let legendX = padding + 15;
+    const legendY = padding - 15;
+
+    for (const { color, label, value } of percentiles) {
+      ctx.fillStyle = color;
+      ctx.fillRect(legendX, legendY - 10, 14, 14);
+      ctx.fillStyle = isDarkMode ? '#e4e4e7' : '#09090b';
+      ctx.fillText(`${label}: $${value.toFixed(2)}`, legendX + 20, legendY);
+      legendX += 200;
+    }
+  }, [chartData, isDarkMode]);
+
+  // Handle resize
+  useEffect(() => {
+    if (!canvasRef.current || !chartData) return;
+
+    const handleResize = () => {
+      if (!containerRef.current || !canvasRef.current) return;
+      const width = containerRef.current.clientWidth - 20;
+      canvasRef.current.width = width;
+      canvasRef.current.height = 400;
+      drawChart();
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [chartData, drawChart]);
+
+  // Fetch data
   useEffect(() => {
     if (!isOpen || !forecast) return;
 
     let isMounted = true;
 
-    const initChart = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        // Fetch forecast paths
         const data = await apiService.fetchForecastPaths(forecast.id);
-        const paths = (data.paths as number[][]) || [];
-
-        if (!isMounted) return;
-
-        // Clear container
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-        }
-
-        // Load lightweight-charts library
-        if (!(window as any).LightweightCharts) {
-          const script = document.createElement('script');
-          script.src = 'https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js';
-          script.async = true;
-
-          await new Promise<void>((resolve, reject) => {
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load lightweight-charts'));
-            document.head.appendChild(script);
+        
+        if (isMounted) {
+          setChartData({
+            paths: data.paths || [],
+            p5: data.percentile_5,
+            p50: data.median,
+            p95: data.percentile_95,
           });
-        }
-
-        if (!isMounted) return;
-
-        const { createChart } = (window as any).LightweightCharts as any;
-        if (!containerRef.current) return;
-
-        const width = containerRef.current.clientWidth || 600;
-        const height = 400;
-
-        // OPTIMIZATION 4: Lean chart configuration - disable unnecessary features
-        const chart = createChart(containerRef.current, {
-          width: Math.max(width, 100),
-          height: Math.max(height, 100),
-          layout: {
-            textColor: isDarkMode ? '#e4e4e7' : '#626262',
-            background: { type: 'solid' as const, color: isDarkMode ? '#3f3f46' : '#ffffff' },
-            fontSize: 12,
-          },
-          timeScale: {
-            timeVisible: false,
-            secondsVisible: false,
-            rightOffset: 5,
-            barSpacing: 3,
-            fixLeftEdge: true,
-            lockRange: false,
-          },
-          rightPriceScale: {
-            borderVisible: false,
-            autoScale: true,
-            mode: 1, // Percentage mode for better scaling
-          },
-          crosshair: {
-            mode: 1, // Normal crosshair
-            vertLine: {
-              width: 1,
-              color: isDarkMode ? '#52525b' : '#cccccc',
-              style: 1,
-            },
-            horzLine: {
-              width: 1,
-              color: isDarkMode ? '#52525b' : '#cccccc',
-              style: 1,
-            },
-          },
-          grid: {
-            horzLines: { visible: true, color: isDarkMode ? '#4f46e5' : '#f0f0f0' },
-            vertLines: { visible: false }, // Disable to reduce rendering
-          },
-          handleScale: {
-            mouseWheel: true,
-            pinch: true,
-          },
-          handleScroll: {
-            mouseWheel: true,
-            pressedMouseMove: true,
-          },
-        });
-
-        seriesRef.current = [];
-
-        // OPTIMIZATION 5: Aggressive downsampling for paths
-        const downsampleFactor = Math.max(1, Math.floor(forecast.horizon_days / 30));
-        const pathsToRender = Math.min(25, Math.max(10, Math.floor(paths.length / 3))); // Render max 25 paths
-        const pathStep = Math.floor(paths.length / pathsToRender);
-
-        // Render downsampled paths
-        for (let i = 0; i < paths.length; i += Math.max(1, pathStep)) {
-          const path = paths[i];
-          if (!path || path.length === 0) continue;
-
-          // Downsample individual path
-          const downsampledPath = downsampleData(path, downsampleFactor);
-
-          const lineSeries = chart.addLineSeries({
-            color: '#2563eb',
-            lineWidth: 0.8,
-            crosshairMarkerVisible: false, // Don't show marker on hover
-          });
-
-          const chartData = downsampledPath.map((price, index) => ({
-            time: index * downsampleFactor,
-            value: price,
-          }));
-
-          lineSeries.setData(chartData);
-          seriesRef.current.push(lineSeries);
-        }
-
-        // Add percentile lines (these are critical, keep full resolution)
-        const p5Line = chart.addLineSeries({
-          color: '#ef4444',
-          lineWidth: 2.5,
-          crosshairMarkerVisible: true,
-        });
-
-        const p50Line = chart.addLineSeries({
-          color: '#eab308',
-          lineWidth: 2.5,
-          crosshairMarkerVisible: true,
-        });
-
-        const p95Line = chart.addLineSeries({
-          color: '#22c55e',
-          lineWidth: 2.5,
-          crosshairMarkerVisible: true,
-        });
-
-        seriesRef.current.push(p5Line, p50Line, p95Line);
-
-        // Set percentile data
-        const startPrice = Number(forecast.stock.price);
-        const endIndex = forecast.horizon_days;
-
-        p5Line.setData([
-          { time: 0, value: startPrice },
-          { time: endIndex, value: Number(data.percentile_5) },
-        ]);
-
-        p50Line.setData([
-          { time: 0, value: startPrice },
-          { time: endIndex, value: Number(data.median) },
-        ]);
-
-        p95Line.setData([
-          { time: 0, value: startPrice },
-          { time: endIndex, value: Number(data.percentile_95) },
-        ]);
-
-        chart.timeScale().fitContent();
-        chartRef.current = chart;
-
-        if (!isMounted) return;
-        setLoading(false);
-
-        // OPTIMIZATION 6: Use ResizeObserver instead of window resize event
-        if (resizeObserverRef.current) {
-          resizeObserverRef.current.disconnect();
-        }
-
-        resizeObserverRef.current = new ResizeObserver(() => {
-          handleResizeDebounced();
-        });
-
-        if (containerRef.current) {
-          resizeObserverRef.current.observe(containerRef.current);
+          setLoading(false);
         }
       } catch (err) {
         if (isMounted) {
-          console.error('Forecast chart error:', err);
           setError(String(err));
           setLoading(false);
         }
       }
     };
 
-    initChart();
+    fetchData();
+    return () => { isMounted = false; };
+  }, [isOpen, forecast]);
 
-    // OPTIMIZATION 7: Proper cleanup to prevent memory leaks
-    return () => {
-      isMounted = false;
+  // Draw on data change
+  useEffect(() => {
+    if (chartData && canvasRef.current) {
+      const width = containerRef.current?.clientWidth || 600;
+      canvasRef.current.width = width - 20;
+      canvasRef.current.height = 400;
+      drawChart();
+    }
+  }, [chartData, drawChart]);
 
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-        resizeObserverRef.current = null;
-      }
-
-      if (chartRef.current) {
-        try {
-          seriesRef.current = [];
-          chartRef.current.remove();
-          chartRef.current = null;
-        } catch (err) {
-          console.error('Cleanup error:', err);
-        }
-      }
-    };
-  }, [isOpen, forecast, handleResizeDebounced]);
-
-  if (!isOpen || !forecast) {
-    return null;
-  }
+  if (!isOpen || !forecast) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-auto">
       <div className={`rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-auto my-auto transition-colors duration-300 ${
-        isDarkMode
-          ? "bg-zinc-800"
-          : "bg-white"
+        isDarkMode ? "bg-zinc-800" : "bg-white"
       }`}>
         <div className={`sticky top-0 p-6 flex justify-between items-center z-10 border-b transition-colors duration-300 ${
-          isDarkMode
-            ? "bg-zinc-800 border-zinc-700"
-            : "bg-white border-zinc-200"
+          isDarkMode ? "bg-zinc-800 border-zinc-700" : "bg-white border-zinc-200"
         }`}>
           <div>
-            <h2 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{forecast.stock.symbol} Forecast</h2>
+            <h2 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
+              {forecast.stock.symbol} Forecast
+            </h2>
             <p className={`text-sm mt-1 ${isDarkMode ? "text-zinc-400" : "text-zinc-600"}`}>
               {forecast.horizon_days} days • {forecast.paths.toLocaleString()} simulations
             </p>
           </div>
           <button
             onClick={onClose}
-            className={`text-3xl font-bold leading-none p-0 transition-colors duration-300 ${
-              isDarkMode
-                ? "text-zinc-400 hover:text-zinc-200"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
+            className={`text-3xl font-bold leading-none ${isDarkMode ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-500 hover:text-zinc-700"}`}
           >
             ×
           </button>
@@ -335,85 +241,35 @@ export const ForecastModalOptimized = ({ forecast, isOpen, onClose, isDarkMode }
           {loading && (
             <div className="flex flex-col justify-center items-center h-96 gap-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              <p className={`font-medium ${isDarkMode ? "text-zinc-200" : "text-zinc-700"}`}>Optimizing visualization...</p>
-              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
-                Downsampling {forecast.paths.toLocaleString()} simulations for smooth rendering
-              </p>
+              <p className={`font-medium ${isDarkMode ? "text-zinc-200" : "text-zinc-700"}`}>Loading chart...</p>
             </div>
           )}
 
           {error && (
-            <div className={`border rounded p-4 transition-colors duration-300 ${
-              isDarkMode
-                ? "bg-red-900 border-red-700 text-red-200"
-                : "bg-red-50 border-red-200 text-red-700"
-            }`}>
+            <div className={`border rounded p-4 ${isDarkMode ? "bg-red-900 border-red-700 text-red-200" : "bg-red-50 border-red-200 text-red-700"}`}>
               Error: {error}
             </div>
           )}
 
-          {!loading && !error && (
+          {!loading && !error && chartData && (
             <>
-              <div
-                ref={containerRef}
-                style={{
-                  width: '100%',
-                  height: '400px',
-                  position: 'relative',
-                  marginBottom: '24px',
-                  background: isDarkMode ? '#3f3f46' : '#ffffff',
-                }}
-                className={`border rounded transition-colors duration-300 ${
-                  isDarkMode
-                    ? "border-zinc-700"
-                    : "border-zinc-200"
-                }`}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-6 border-t transition-colors duration-300" style={{borderTopColor: isDarkMode ? '#3f3f46' : '#e4e4e7'}}>
-                <div className={`p-4 rounded transition-colors duration-300 ${
-                  isDarkMode
-                    ? "bg-red-900 text-red-200"
-                    : "bg-red-50"
-                }`}>
-                  <p className={`text-sm font-semibold ${isDarkMode ? "text-red-200" : "text-red-600"}`}>5th Percentile</p>
-                  <p className={`text-2xl font-bold ${isDarkMode ? "text-red-200" : "text-red-700"}`}>
-                    ${Number(forecast.percentile_5).toFixed(2)}
-                  </p>
-                </div>
-
-                <div className={`p-4 rounded transition-colors duration-300 ${
-                  isDarkMode
-                    ? "bg-yellow-900 text-yellow-200"
-                    : "bg-yellow-50"
-                }`}>
-                  <p className={`text-sm font-semibold ${isDarkMode ? "text-yellow-200" : "text-yellow-600"}`}>Median</p>
-                  <p className={`text-2xl font-bold ${isDarkMode ? "text-yellow-200" : "text-yellow-700"}`}>
-                    ${Number(forecast.median).toFixed(2)}
-                  </p>
-                </div>
-
-                <div className={`p-4 rounded transition-colors duration-300 ${
-                  isDarkMode
-                    ? "bg-green-900 text-green-200"
-                    : "bg-green-50"
-                }`}>
-                  <p className={`text-sm font-semibold ${isDarkMode ? "text-green-200" : "text-green-600"}`}>95th Percentile</p>
-                  <p className={`text-2xl font-bold ${isDarkMode ? "text-green-200" : "text-green-700"}`}>
-                    ${Number(forecast.percentile_95).toFixed(2)}
-                  </p>
-                </div>
+              <div ref={containerRef} className={`border rounded overflow-hidden ${isDarkMode ? "border-zinc-700 bg-zinc-900" : "border-zinc-200"}`}>
+                <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} />
               </div>
 
-              <div className={`mt-6 p-4 rounded transition-colors duration-300 ${
-                isDarkMode
-                  ? "bg-blue-900 text-blue-200"
-                  : "bg-blue-50"
-              }`}>
-                <p className={`text-sm font-semibold ${isDarkMode ? "text-blue-200" : "text-blue-600"}`}>Probability of Price Increase</p>
-                <p className={`text-2xl font-bold ${isDarkMode ? "text-blue-200" : "text-blue-700"}`}>
-                  {(Number(forecast.probability_up) * 100).toFixed(1)}%
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-6 border-t" style={{borderTopColor: isDarkMode ? '#52525b' : '#e4e4e7'}}>
+                <div className={`p-4 rounded ${isDarkMode ? "bg-red-900" : "bg-red-50"}`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-red-200" : "text-red-600"}`}>5th Percentile</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-red-200" : "text-red-700"}`}>${chartData.p5.toFixed(2)}</p>
+                </div>
+                <div className={`p-4 rounded ${isDarkMode ? "bg-yellow-900" : "bg-yellow-50"}`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-yellow-200" : "text-yellow-600"}`}>Median</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-yellow-200" : "text-yellow-700"}`}>${chartData.p50.toFixed(2)}</p>
+                </div>
+                <div className={`p-4 rounded ${isDarkMode ? "bg-green-900" : "bg-green-50"}`}>
+                  <p className={`text-sm font-semibold ${isDarkMode ? "text-green-200" : "text-green-600"}`}>95th Percentile</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? "text-green-200" : "text-green-700"}`}>${chartData.p95.toFixed(2)}</p>
+                </div>
               </div>
             </>
           )}
